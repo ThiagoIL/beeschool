@@ -1,6 +1,5 @@
 // Recuperação de acesso da conta master, para quem tem acesso ao servidor (console do Easypanel).
 // Uso: NEW_PASSWORD='NovaSenhaForte2026' node scripts/reset-master-password.mjs
-// Celular do autenticador perdido: RESET_2FA=1 junto (o console pede para configurar o 2FA de novo no próximo acesso).
 // A senha nunca fica vazia: o script só troca por outra que siga a política.
 import bcrypt from "bcryptjs";
 import { pool, newId, passwordProblem } from "./_common.mjs";
@@ -15,7 +14,7 @@ try {
     if (prob) { console.error(`NEW_PASSWORD inválida: ${prob}.`); process.exitCode = 1; }
     else {
       await db.query(
-        `update users set password_hash = $1, password_changed_at = now(), failed_logins = 0, locked_until = null, must_change_password = false${process.env.RESET_2FA === "1" ? ", totp_secret = null, totp_enabled_at = null, totp_last_step = null" : ""} where id = $2`,
+        `update users set password_hash = $1, password_changed_at = now(), failed_logins = 0, locked_until = null, must_change_password = false where id = $2`,
         [await bcrypt.hash(pass, 12), rows[0].id],
       );
       await db.query("delete from sessions where user_id = $1", [rows[0].id]);

@@ -54,11 +54,6 @@ export const users = pgTable("users", {
   mustChangePassword: boolean("must_change_password").notNull().default(false),
   /** perfil de acesso aos módulos (access_profiles); nulo = acesso padrão */
   profileId: text("profile_id"),
-  /** segredo TOTP (base32) cifrado com AUTH_SECRET; só o console usa 2FA (opcional) */
-  totpSecret: text("totp_secret"),
-  totpEnabledAt: ts("totp_enabled_at"),
-  /** último passo TOTP aceito (evita reaproveitar o mesmo código) */
-  totpLastStep: integer("totp_last_step"),
   failedLogins: integer("failed_logins").notNull().default(0),
   lockedUntil: ts("locked_until"),
   lastLoginAt: ts("last_login_at"),

@@ -7,18 +7,18 @@ import { env } from "./env";
 import { sessions, type User } from "@/db/schema";
 import { clientIp, userAgent } from "./request";
 import { consoleBase } from "./console-path";
-import { cookieOf, sessionFromToken, sha256, type Area, type SessionCtx } from "./session-core";
+import { cookieOf, hashToken, sessionFromToken, type Area, type SessionCtx } from "./session-core";
 
 export type { Area, SessionCtx };
 
 const cookiePath = (area: Area) => (area === "CONSOLE" ? consoleBase() : "/");
 
-/** Abre a sessão: token aleatório de 256 bits no cookie; no banco fica só o SHA-256. */
+/** Abre a sessão: token aleatório de 256 bits no cookie; no banco fica só o HMAC dele (com o AUTH_SECRET). */
 export async function createSession(user: User, area: Area): Promise<void> {
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + env.SESSION_HOURS * 3600_000);
   await db.insert(sessions).values({
-    tokenHash: sha256(token), userId: user.id, area,
+    tokenHash: hashToken(token), userId: user.id, area,
     ip: await clientIp(), userAgent: await userAgent(), expiresAt,
   });
   await db.delete(sessions).where(and(eq(sessions.userId, user.id), lt(sessions.expiresAt, new Date())));
@@ -32,7 +32,7 @@ export async function readSession(area: Area): Promise<SessionCtx | null> {
 export async function destroySession(area: Area): Promise<void> {
   const jar = await cookies();
   const token = jar.get(cookieOf(area))?.value;
-  if (token) await db.delete(sessions).where(eq(sessions.tokenHash, sha256(token)));
+  if (token) await db.delete(sessions).where(eq(sessions.tokenHash, hashToken(token)));
   jar.delete({ name: cookieOf(area), path: cookiePath(area) });
 }
 

@@ -2,7 +2,6 @@ import "server-only";
 import { cache } from "react";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { env } from "./env";
 import type { System } from "@/db/schema";
 import { readSession, type SessionCtx } from "./session";
 import { getSystem as loadSystem, systemBlocked } from "./session-core";
@@ -43,23 +42,15 @@ export function toActor(s: SessionCtx): Actor {
   return { id: s.user.id, role: s.user.role };
 }
 
-/** Administrador ainda precisa configurar o 2FA (só quando env.twoFactorRequired). */
-export function needsTwoFactorSetup(user: { totpEnabledAt: Date | null }): boolean {
-  return env.twoFactorRequired && !user.totpEnabledAt;
-}
-
 /**
- * Exige administrador do console logado. Com 2FA obrigatório e ainda não ativo, só a página
- * "Minha conta" abre (para configurar o autenticador). Fora do console: 404.
+ * Exige administrador do console logado. Com troca de senha pendente, só a página "Minha conta" abre.
+ * Fora do console: 404.
  */
-export async function requireAdmin(opts: { allowSetup?: boolean } = {}): Promise<SessionCtx> {
+export async function requireAdmin(opts: { allowPasswordChange?: boolean } = {}): Promise<SessionCtx> {
   if ((await requestArea()).area !== "console") notFound();
   const s = await consoleSession();
   if (!s) redirect(consoleHref("/login"));
-  if (!opts.allowSetup) {
-    if (s.user.mustChangePassword) redirect(consoleHref("/conta?trocar=1"));
-    if (needsTwoFactorSetup(s.user)) redirect(consoleHref("/conta?2fa=1"));
-  }
+  if (s.user.mustChangePassword && !opts.allowPasswordChange) redirect(consoleHref("/conta?trocar=1"));
   return s;
 }
 
@@ -83,7 +74,7 @@ export async function requireUser(opts: { admin?: boolean; allowPasswordChange?:
  */
 export async function adminForAction(): Promise<SessionCtx | null> {
   const s = await consoleSession();
-  return s && !s.user.mustChangePassword && !needsTwoFactorSetup(s.user) ? s : null;
+  return s && !s.user.mustChangePassword ? s : null;
 }
 
 export async function userForAction(opts: { admin?: boolean } = {}): Promise<UserCtx | null> {

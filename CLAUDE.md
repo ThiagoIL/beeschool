@@ -12,7 +12,7 @@ Base de código derivada do Otimiza+ ERP (`D:\CLAUDE\otimiza-erp`).
 
 ## Stack
 Next.js 15 (App Router + Server Actions) · React 19 · TypeScript · PostgreSQL 16 · Drizzle ORM · Zod · Vitest ·
-nodemailer · qrcode · CSS próprio (`src/app/globals.css`, paleta dourado #E9AE20 / preto / cinza, fundo creme).
+nodemailer · CSS próprio (`src/app/globals.css`, paleta dourado #E9AE20 / preto / cinza, fundo creme).
 
 ## Regras de arquitetura (não quebrar)
 - Sem `tenant_id`. Configuração do fornecedor (licença, bloqueio, módulos, plano) na linha única
@@ -43,7 +43,7 @@ nodemailer · qrcode · CSS próprio (`src/app/globals.css`, paleta dourado #E9A
 - Telas: `src/views/app/finance.tsx`, `panels.tsx`, `home.tsx`, `admin.tsx`; console `src/views/admin/*` (rotas em `src/app/console`).
 - Cadastros simples (empresas, contas, grupos, categorias, formas, situações, pessoas, alunos, turmas,
   responsáveis): `src/server/simple-registry.ts` + `SimplePage`/`SimpleCrud`.
-- Segurança: `src/lib/session*.ts`, `context.ts`, `access.ts`, `license.ts`, `totp.ts`, `mail.ts`, `console-path.ts`, `middleware.ts`.
+- Segurança: `src/lib/session*.ts`, `context.ts`, `access.ts`, `license.ts`, `token.ts`, `mail.ts`, `console-path.ts`, `middleware.ts`.
 - Exportações CSV: `src/server/exports.ts` (`/api/export/<tipo>`).
 
 ## Comandos
@@ -52,9 +52,10 @@ use `DATABASE_POOL_MAX=1`) · `npm run db:migrate` · `npm run db:bootstrap` · 
 
 ## Decisões (nov/2026)
 - Sem multi-tenant; bootstrap cria a conta master do console (`PLATFORM_ADMIN_*`) e o 1º admin da escola (`ADMIN_*`).
-- Variáveis obrigatórias: só `DATABASE_URL` e `AUTH_SECRET` (cifra o 2FA; nunca trocar depois de em uso).
-- 2FA no console é opcional (pedido do João, nov/2026): cada admin ativa em Minha conta; quem ativou passa a
-  digitar o código. Para obrigar de novo: `twoFactorRequired: true` em `src/lib/env.ts`.
+- Variáveis obrigatórias: só `DATABASE_URL` e `AUTH_SECRET`. O AUTH_SECRET entra no HMAC dos tokens de sessão e
+  dos links de senha (`src/lib/token.ts`): trocar a chave desconecta todo mundo, como nos sistemas antigos.
+- 2FA removido do sistema inteiro por enquanto (pedido do João, nov/2026; migração 0002 apagou as colunas).
+  Se voltar: colunas novas em `users`, tela em Minha conta e checagem no `loginAction` do console.
 - Bloqueio automático: `paid_until` + `grace_days`; manual com `block_message` (em `system_settings`). Tela `/suspenso`.
 - Grupo de receitas padrão renomeado para "Outras receitas" (a linha calculada é "Receita Bruta").
 - Contas padrão criadas por suposição (Bee School: Inter, C6, Cora, Itaú, Sicredi 1/2, Nordeste, Caixa;

@@ -3,7 +3,7 @@ import { z } from "zod";
 
 const schema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL é obrigatória"),
-  /** chave para cifrar os segredos do 2FA (mínimo 32 caracteres; nunca troque depois de em uso) */
+  /** chave das sessões e dos links de senha (mínimo 32 caracteres). Trocar desconecta todo mundo. */
   AUTH_SECRET: z.string().min(32, "AUTH_SECRET precisa ter pelo menos 32 caracteres"),
   /** endereço público do sistema (ex.: https://sistema.beeschool.com.br), usado nos links dos e-mails */
   APP_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url("APP_URL precisa ser um endereço completo, com https://").optional()),
@@ -32,7 +32,5 @@ if (!parsed.success) {
 export const env = {
   ...parsed.data,
   isProd: process.env.NODE_ENV === "production",
-  /** 2FA no console: opcional (ativado por cada administrador em Minha conta). Mude para true para obrigar. */
-  twoFactorRequired: false,
   cookieSecure: parsed.data.COOKIE_SECURE ? parsed.data.COOKIE_SECURE === "true" : process.env.NODE_ENV === "production",
 };

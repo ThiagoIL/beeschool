@@ -1,5 +1,4 @@
 // Sem "server-only" e sem next/headers: usado também pelo middleware (runtime Node.js).
-import { createHash } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { db } from "./db";
 import { env } from "./env";
@@ -7,6 +6,7 @@ import { sessions, systemSettings, users, type System, type User } from "@/db/sc
 import { accessProfiles } from "@/db/erp";
 import { licenseBlock } from "./license";
 import { computeAccess, type Access } from "./modules";
+import { hmacToken } from "./token";
 
 /** CONSOLE = console do fornecedor; APP = sistema da escola. */
 export type Area = "CONSOLE" | "APP";
@@ -15,7 +15,11 @@ export const APP_COOKIE = env.cookieSecure ? "__Host-bee_sess" : "bee_sess";
 /** O cookie do console só é enviado ao caminho do console (Path = PLATFORM_ADMIN_PATH). */
 export const CONSOLE_COOKIE = env.cookieSecure ? "__Secure-bee_console" : "bee_console";
 export const cookieOf = (area: Area) => (area === "CONSOLE" ? CONSOLE_COOKIE : APP_COOKIE);
-export const sha256 = (v: string) => createHash("sha256").update(v).digest("hex");
+/**
+ * Hash dos tokens de sessão e dos links de senha: HMAC-SHA256 com o AUTH_SECRET. O banco guarda só o hash;
+ * trocar o AUTH_SECRET invalida na hora todas as sessões abertas e todos os links de senha pendentes.
+ */
+export const hashToken = (v: string) => hmacToken(env.AUTH_SECRET, v);
 
 export type SessionCtx = { sessionId: string; user: User };
 
@@ -43,7 +47,7 @@ export async function sessionFromToken(token: string | undefined, area: Area): P
   if (!token || token.length < 20 || token.length > 100) return null;
   const rows = await db.select({ s: sessions, u: users }).from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
-    .where(eq(sessions.tokenHash, sha256(token))).limit(1);
+    .where(eq(sessions.tokenHash, hashToken(token))).limit(1);
   const r = rows[0];
   if (!r) return null;
   const now = Date.now();

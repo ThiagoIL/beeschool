@@ -89,9 +89,6 @@ describe("regras de usuários no banco", () => {
   it("senha nunca fica sem hash bcrypt", async () => {
     await rejects(db.query(`update users set password_hash = '' where id = 'u1'`), /users_password_hash_ck/);
   });
-  it("2FA só para administradores do console", async () => {
-    await rejects(db.query(`update users set totp_secret = 'x', totp_enabled_at = now() where id = 'u1'`), /users_totp_scope_ck/);
-  });
   it("perfil excluído deixa o usuário sem perfil", async () => {
     await db.query(`insert into access_profiles (id, name) values ('p1', 'Secretaria')`);
     await db.query(`update users set profile_id = 'p1' where id = 'u1'`);

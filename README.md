@@ -92,9 +92,9 @@ mensalidade por aluno e competência, lançamento baixado não se exclui.
 - **Login**: bcrypt custo 12, hash fictício para usuário inexistente, mensagem genérica, limite por IP e por
   conta guardado no banco, bloqueio de 15 min após 5 erros, senha 10+ com maiúscula/minúscula/número,
   senha provisória com troca obrigatória.
-- **2FA opcional no console** (cada administrador ativa em Minha conta) (TOTP, compatível com Google/Microsoft Authenticator); segredo cifrado com
-  AES-256-GCM (`AUTH_SECRET`); código não pode ser reutilizado.
-- **Sessão**: token aleatório de 256 bits, só o SHA-256 no banco, 12 h de duração e 120 min de inatividade,
+- **Sem 2FA por enquanto** (decisão de nov/2026; pode voltar no futuro).
+- **Sessão**: token aleatório de 256 bits; no banco fica só o HMAC-SHA256 dele com o `AUTH_SECRET`
+  (trocar o `AUTH_SECRET` desconecta todo mundo e invalida os links de senha pendentes), 12 h de duração e 120 min de inatividade,
   cookie HttpOnly/Secure/SameSite=Lax, presa à área; revogada ao trocar senha,
   desativar, mudar perfil ou bloquear. **Sessões ativas** em Minha conta (encerrar uma ou todas as outras).
 - **Recuperação de senha por e-mail**: token de uso único (hash no banco), validade configurável, resposta
@@ -176,8 +176,7 @@ npm test
    `COOKIE_SECURE=false` em produção.
 4. **Domínio** (porta 3000, HTTPS): um só, ex.: `sistema.beeschool.com.br`. No DNS, crie o registro A/CNAME.
 5. **Deploy**. Nos logs: migrações aplicadas, conta master do console e administrador da escola criados.
-6. Entre em `https://seu-dominio/sistema-admin`: confira licença e módulos; (opcional) ative o **2FA** em
-   Minha conta. Entre na escola (`https://seu-dominio`) com o administrador e troque a senha provisória.
+6. Entre em `https://seu-dominio/sistema-admin` e confira licença e módulos. Entre na escola (`https://seu-dominio`) com o administrador e troque a senha provisória.
 7. **Apague as senhas** (`PLATFORM_ADMIN_PASSWORD`, `ADMIN_PASSWORD`) das variáveis e faça novo deploy.
 8. Health check: `/api/health` (200 com o banco ok, 503 sem banco).
 
@@ -191,7 +190,7 @@ uma restauração por trimestre. Para uma cópia manual:
 pg_dump --format=custom --no-owner "$DATABASE_URL" > bee-school-$(date +%F).dump
 ```
 
-O `AUTH_SECRET` precisa ficar guardado junto (sem ele, os 2FA do console precisam ser reconfigurados).
+Os backups não dependem do `AUTH_SECRET`: com outra chave, os dados voltam inteiros e só é preciso entrar de novo.
 
 ## Variáveis de ambiente
 
@@ -204,5 +203,6 @@ Ver `.env.example` (com explicação de cada uma). Obrigatórias: `DATABASE_URL`
 - **Mensalidades**: Financeiro › Mensalidades, escolha a competência e gere (repetir não duplica).
 - **Bloquear/liberar o sistema**: console › Licença e módulos. O bloqueio automático acontece depois de
   "licença paga até" + tolerância.
-- **Conta master sem acesso** (senha ou celular do 2FA perdido), no console do servidor:
-  `NEW_PASSWORD='NovaSenhaForte2026' RESET_2FA=1 node scripts/reset-master-password.mjs`.
+- **Conta master sem acesso** (senha perdida), no console do servidor:
+  `NEW_PASSWORD='NovaSenhaForte2026' node scripts/reset-master-password.mjs`.
+- **Desconectar todo mundo de uma vez** (ex.: suspeita de vazamento): troque o `AUTH_SECRET` e reinicie o app.

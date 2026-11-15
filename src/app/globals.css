@@ -868,8 +868,6 @@ select.sup-fab,select.sup-est{height:32px;font-size:13px;min-width:160px}
 .shortcuts a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--r);text-decoration:none;color:var(--ink);font-weight:500}
 .shortcuts a:hover{background:var(--amber-soft)}
 .shortcuts .ic{color:#B98500}
-.qr-box{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
-.qr-box img{border:1px solid var(--line);border-radius:8px;background:#fff}
 .secret{font-family:ui-monospace,Consolas,monospace;font-size:14px;letter-spacing:.06em;background:var(--surface-2);padding:6px 8px;border-radius:6px;display:inline-block;word-break:break-all}
 details summary{cursor:pointer;color:var(--link);margin:4px 0 10px}
 .table-preview{max-height:300px;margin:6px 0}

@@ -49,7 +49,7 @@ export async function saveTitleAction(input: z.input<typeof titleSchema>): Promi
         await tx.update(E.finTitles).set({ ...base, ...locked, dueDate: d.dueDate }).where(eq(E.finTitles.id, d.id));
       } else {
         const rows = Array.from({ length: d.paidNow ? 1 : d.repeat }, (_, i) => ({
-          ...base, tenantId: s.tenant.id, dueDate: i ? addMonths(d.dueDate, i) : d.dueDate, userName: s.userName,
+          ...base, dueDate: i ? addMonths(d.dueDate, i) : d.dueDate, userName: s.userName,
           installment: d.repeat > 1 && !d.paidNow ? `${i + 1}/${d.repeat}` : null, originType: "MANUAL",
           ...(d.paidNow ? { status: "PAGO", paidAt: d.paidNow.paidAt, paidAmount: String(d.amount), bankAccountId: d.paidNow.bankAccountId } : { status: "ABERTO" }),
         }));
@@ -59,7 +59,7 @@ export async function saveTitleAction(input: z.input<typeof titleSchema>): Promi
   } catch (err) {
     return { error: ruleMsg(err) };
   }
-  await audit({ action: d.id ? "lancamento.alterado" : "lancamento.criado", tenantId: s.tenant.id, userId: s.user.id, userEmail: s.user.email, entity: "lancamento", entityId: d.id, data: { tipo: d.kind, valor: d.amount, repeticoes: d.repeat } });
+  await audit({ action: d.id ? "lancamento.alterado" : "lancamento.criado", userId: s.user.id, userEmail: s.user.email, entity: "lancamento", entityId: d.id, data: { tipo: d.kind, valor: d.amount, repeticoes: d.repeat } });
   return { ok: true, message: d.id ? "Lançamento salvo." : d.paidNow ? "Movimento registrado." : d.repeat > 1 ? `${d.repeat} lançamentos criados.` : "Lançamento criado." };
 }
 
@@ -74,7 +74,7 @@ export async function payTitleAction(input: z.input<typeof paySchema>): Promise<
     const r = await s.tx((tx) => tx.update(E.finTitles).set({ status: "PAGO", paidAt: d.paidAt, paidAmount: String(d.paidAmount), bankAccountId: d.bankAccountId, ...(d.paymentMethodId ? { paymentMethodId: d.paymentMethodId } : {}) })
       .where(and(eq(E.finTitles.id, d.id), eq(E.finTitles.status, "ABERTO"))).returning({ k: E.finTitles.kind }));
     if (!r.length) return { error: "Este lançamento não está em aberto." };
-    await audit({ action: "lancamento.baixado", tenantId: s.tenant.id, userId: s.user.id, userEmail: s.user.email, entity: "lancamento", entityId: d.id, data: { valor: d.paidAmount, data: d.paidAt } });
+    await audit({ action: "lancamento.baixado", userId: s.user.id, userEmail: s.user.email, entity: "lancamento", entityId: d.id, data: { valor: d.paidAmount, data: d.paidAt } });
     return { ok: true, message: r[0].k === "RECEBER" ? "Recebimento registrado." : "Pagamento registrado." };
   } catch (err) {
     return { error: ruleMsg(err) };
@@ -87,7 +87,7 @@ export async function reversePaymentAction(id: string): Promise<ActionState> {
   const r = await s.tx((tx) => tx.update(E.finTitles).set({ status: "ABERTO", paidAt: null, paidAmount: null, bankAccountId: null })
     .where(and(eq(E.finTitles.id, String(id).slice(0, 64)), eq(E.finTitles.status, "PAGO"))).returning({ id: E.finTitles.id }));
   if (!r.length) return { error: "Este lançamento não está baixado." };
-  await audit({ action: "lancamento.estornado", tenantId: s.tenant.id, userId: s.user.id, userEmail: s.user.email, entity: "lancamento", entityId: id });
+  await audit({ action: "lancamento.estornado", userId: s.user.id, userEmail: s.user.email, entity: "lancamento", entityId: id });
   return { ok: true, message: "Baixa estornada. O lançamento voltou para em aberto." };
 }
 
@@ -101,7 +101,7 @@ export async function cancelTitleAction(id: string, undo = false): Promise<Actio
   } catch (err) {
     return { error: ruleMsg(err) };
   }
-  await audit({ action: undo ? "lancamento.reativado" : "lancamento.cancelado", tenantId: s.tenant.id, userId: s.user.id, userEmail: s.user.email, entity: "lancamento", entityId: id });
+  await audit({ action: undo ? "lancamento.reativado" : "lancamento.cancelado", userId: s.user.id, userEmail: s.user.email, entity: "lancamento", entityId: id });
   return { ok: true, message: undo ? "Lançamento reativado." : "Lançamento cancelado. Ele deixa de contar no fluxo de caixa." };
 }
 
@@ -119,7 +119,7 @@ export async function deleteTitleAction(id: string): Promise<ActionState> {
   } catch (err) {
     return { error: ruleMsg(err) };
   }
-  await audit({ action: "lancamento.excluido", tenantId: s.tenant.id, userId: s.user.id, userEmail: s.user.email, entity: "lancamento", entityId: id });
+  await audit({ action: "lancamento.excluido", userId: s.user.id, userEmail: s.user.email, entity: "lancamento", entityId: id });
   return { ok: true, message: "Lançamento excluído." };
 }
 
@@ -134,9 +134,9 @@ export async function saveBankEntryAction(input: z.input<typeof entrySchema>): P
   const p = entrySchema.safeParse(input);
   if (!p.success) return { error: p.error.issues[0]?.message ?? "Confira o lançamento." };
   try {
-    await s.tx((tx) => tx.insert(E.bankEntries).values({ ...p.data, amount: String(p.data.amount), notes: p.data.notes?.trim() || null, tenantId: s.tenant.id }));
+    await s.tx((tx) => tx.insert(E.bankEntries).values({ ...p.data, amount: String(p.data.amount), notes: p.data.notes?.trim() || null }));
   } catch (err) { return { error: ruleMsg(err) }; }
-  await audit({ action: "extrato.ajuste_criado", tenantId: s.tenant.id, userId: s.user.id, userEmail: s.user.email, entity: "conta", entityId: p.data.bankAccountId, data: { valor: p.data.amount } });
+  await audit({ action: "extrato.ajuste_criado", userId: s.user.id, userEmail: s.user.email, entity: "conta", entityId: p.data.bankAccountId, data: { valor: p.data.amount } });
   return { ok: true, message: "Ajuste registrado no extrato." };
 }
 
@@ -152,11 +152,11 @@ export async function transferAction(input: z.input<typeof transferSchema>): Pro
   const transferId = createId();
   try {
     await s.tx((tx) => tx.insert(E.bankEntries).values([
-      { tenantId: s.tenant.id, bankAccountId: d.from, date: d.date, description: desc, amount: String(-d.amount), transferId },
-      { tenantId: s.tenant.id, bankAccountId: d.to, date: d.date, description: desc, amount: String(d.amount), transferId },
+      { bankAccountId: d.from, date: d.date, description: desc, amount: String(-d.amount), transferId },
+      { bankAccountId: d.to, date: d.date, description: desc, amount: String(d.amount), transferId },
     ]));
   } catch (err) { return { error: ruleMsg(err) }; }
-  await audit({ action: "extrato.transferencia_criada", tenantId: s.tenant.id, userId: s.user.id, userEmail: s.user.email, entity: "transferencia", entityId: transferId, data: { valor: d.amount } });
+  await audit({ action: "extrato.transferencia_criada", userId: s.user.id, userEmail: s.user.email, entity: "transferencia", entityId: transferId, data: { valor: d.amount } });
   return { ok: true, message: "Transferência registrada nas duas contas." };
 }
 
@@ -171,7 +171,7 @@ export async function deleteBankEntryAction(id: string): Promise<ActionState> {
     return r.length;
   });
   if (!n) return { error: "Movimento não encontrado." };
-  await audit({ action: "extrato.movimento_excluido", tenantId: s.tenant.id, userId: s.user.id, userEmail: s.user.email, entity: "movimento", entityId: id });
+  await audit({ action: "extrato.movimento_excluido", userId: s.user.id, userEmail: s.user.email, entity: "movimento", entityId: id });
   return { ok: true, message: n > 1 ? "Transferência excluída das duas contas." : "Movimento excluído do extrato." };
 }
 
@@ -192,7 +192,7 @@ export async function generateTuitionAction(input: z.input<typeof tuitionSchema>
       if (!cat) throw new RuleError("Categoria não encontrada.");
       const studs = await tx.select().from(E.students).where(and(eq(E.students.status, "ATIVO"), d.companyId ? eq(E.students.companyId, d.companyId) : sql`true`));
       const rows = studs.filter((st) => tuitionValue(st.monthlyFee, st.discount) > 0).map((st) => ({
-        tenantId: s.tenant.id, kind: "RECEBER", companyId: st.companyId, description: `Mensalidade ${m}/${y} — ${st.name}`, personId: st.guardianId, studentId: st.id,
+        kind: "RECEBER", companyId: st.companyId, description: `Mensalidade ${m}/${y} — ${st.name}`, personId: st.guardianId, studentId: st.id,
         categoryId: cat.id, issueDate: today(), dueDate: tuitionDue(d.competence, st.dueDay), competence: d.competence, amount: String(tuitionValue(st.monthlyFee, st.discount)),
         status: "ABERTO", originType: "MENSALIDADE", userName: s.userName,
       }));
@@ -200,7 +200,7 @@ export async function generateTuitionAction(input: z.input<typeof tuitionSchema>
       const ins = await tx.insert(E.finTitles).values(rows).onConflictDoNothing().returning({ id: E.finTitles.id });
       return { created: ins.length, total: rows.length };
     });
-    await audit({ action: "mensalidade.geradas", tenantId: s.tenant.id, userId: s.user.id, userEmail: s.user.email, entity: "competencia", entityId: d.competence, data: r });
+    await audit({ action: "mensalidade.geradas", userId: s.user.id, userEmail: s.user.email, entity: "competencia", entityId: d.competence, data: r });
     if (!r.total) return { ok: true, message: "Nenhum aluno ativo com mensalidade a gerar." };
     const skipped = r.total - r.created;
     return { ok: true, message: `${r.created} ${r.created === 1 ? "mensalidade gerada" : "mensalidades geradas"}${skipped ? ` · ${skipped} já existiam e foram mantidas` : ""}.` };
@@ -253,14 +253,14 @@ export async function importStatementAction(input: z.input<typeof importSchema>)
       if (unknown.length && !d.allowUncategorized) throw new RuleError(`Categorias não encontradas: ${unknown.slice(0, 8).join(", ")}${unknown.length > 8 ? "…" : ""}. Cadastre-as ou marque para importar sem categoria.`);
       const toInsert = d.skipDuplicates ? items.filter((i) => !isDup(i)) : items;
       if (!toInsert.length) throw new RuleError("Todas as linhas já estavam lançadas nesta conta.");
-      const [imp] = await tx.insert(E.finImports).values({ tenantId: s.tenant.id, bankAccountId: acc.id, fileName: d.fileName, rows: toInsert.length, total: String(toInsert.reduce((a, i) => a + (i.kind === "RECEBER" ? i.v : -i.v), 0)), userName: s.userName }).returning();
+      const [imp] = await tx.insert(E.finImports).values({ bankAccountId: acc.id, fileName: d.fileName, rows: toInsert.length, total: String(toInsert.reduce((a, i) => a + (i.kind === "RECEBER" ? i.v : -i.v), 0)), userName: s.userName }).returning();
       for (let k = 0; k < toInsert.length; k += 500) {
         await tx.insert(E.finTitles).values(toInsert.slice(k, k + 500).map((i) => ({
-          tenantId: s.tenant.id, kind: i.kind, companyId: acc.companyId, description: i.description, categoryId: i.categoryId, issueDate: i.date, dueDate: i.date,
+          kind: i.kind, companyId: acc.companyId, description: i.description, categoryId: i.categoryId, issueDate: i.date, dueDate: i.date,
           amount: String(i.v), status: "PAGO", paidAt: i.date, paidAmount: String(i.v), bankAccountId: acc.id, invoice: i.invoice, originType: "IMPORTACAO", originId: imp.id, userName: s.userName,
         })));
       }
-      await audit({ action: "importacao.criada", tenantId: s.tenant.id, userId: s.user.id, userEmail: s.user.email, entity: "importacao", entityId: imp.id, data: { arquivo: d.fileName, linhas: toInsert.length, conta: acc.name } });
+      await audit({ action: "importacao.criada", userId: s.user.id, userEmail: s.user.email, entity: "importacao", entityId: imp.id, data: { arquivo: d.fileName, linhas: toInsert.length, conta: acc.name } });
       return { ok: true, ...summary, created: toInsert.length, message: `${toInsert.length} movimentos importados em ${acc.name}.` };
     });
   } catch (err) {
@@ -279,7 +279,7 @@ export async function undoImportAction(id: string): Promise<ActionState> {
       await tx.delete(E.finImports).where(eq(E.finImports.id, imp.id));
       return r.length;
     });
-    await audit({ action: "importacao.desfeita", tenantId: s.tenant.id, userId: s.user.id, userEmail: s.user.email, entity: "importacao", entityId: id, data: { lancamentos: n } });
+    await audit({ action: "importacao.desfeita", userId: s.user.id, userEmail: s.user.email, entity: "importacao", entityId: id, data: { lancamentos: n } });
     return { ok: true, message: `Importação desfeita: ${n} movimentos removidos.` };
   } catch (err) {
     return { error: ruleMsg(err) };
@@ -300,14 +300,14 @@ export async function saveTargetsAction(input: z.input<typeof targetsSchema>): P
     await s.tx(async (tx) => {
       for (const t of d.targets) {
         if (t.pct == null) { await tx.delete(E.indicatorTargets).where(and(eq(E.indicatorTargets.indicatorId, t.indicatorId), eq(E.indicatorTargets.companyId, d.companyId))); continue; }
-        await tx.insert(E.indicatorTargets).values({ tenantId: s.tenant.id, indicatorId: t.indicatorId, companyId: d.companyId, targetPct: String(t.pct) })
-          .onConflictDoUpdate({ target: [E.indicatorTargets.tenantId, E.indicatorTargets.indicatorId, E.indicatorTargets.companyId], set: { targetPct: String(t.pct) } });
+        await tx.insert(E.indicatorTargets).values({ indicatorId: t.indicatorId, companyId: d.companyId, targetPct: String(t.pct) })
+          .onConflictDoUpdate({ target: [E.indicatorTargets.indicatorId, E.indicatorTargets.companyId], set: { targetPct: String(t.pct) } });
       }
     });
   } catch (err) {
     return { error: ruleMsg(err) };
   }
-  await audit({ action: "metas.alteradas", tenantId: s.tenant.id, userId: s.user.id, userEmail: s.user.email, entity: "empresa", entityId: d.companyId });
+  await audit({ action: "metas.alteradas", userId: s.user.id, userEmail: s.user.email, entity: "empresa", entityId: d.companyId });
   return { ok: true, message: "Metas salvas." };
 }
 
@@ -323,12 +323,12 @@ export async function saveIndicatorAction(input: z.input<typeof indicatorSchema>
     await s.tx(async (tx) => {
       const v = { name: d.name, groupId: d.groupId, categoryIds: d.groupId ? [] : d.categoryIds, position: d.position, active: d.active };
       if (d.id) await tx.update(E.indicators).set(v).where(eq(E.indicators.id, d.id));
-      else await tx.insert(E.indicators).values({ ...v, tenantId: s.tenant.id });
+      else await tx.insert(E.indicators).values({ ...v });
     });
   } catch (err) {
     return { error: ruleMsg(err) };
   }
-  await audit({ action: d.id ? "indicador.alterado" : "indicador.criado", tenantId: s.tenant.id, userId: s.user.id, userEmail: s.user.email, entity: "indicador", entityId: d.id });
+  await audit({ action: d.id ? "indicador.alterado" : "indicador.criado", userId: s.user.id, userEmail: s.user.email, entity: "indicador", entityId: d.id });
   return { ok: true, message: d.id ? "Indicador salvo." : "Indicador criado." };
 }
 
@@ -336,6 +336,6 @@ export async function deleteIndicatorAction(id: string): Promise<ActionState> {
   const s = await act("paineis");
   if (!s) return NO_ACCESS;
   await s.tx((tx) => tx.delete(E.indicators).where(eq(E.indicators.id, String(id).slice(0, 64))));
-  await audit({ action: "indicador.excluido", tenantId: s.tenant.id, userId: s.user.id, userEmail: s.user.email, entity: "indicador", entityId: id });
+  await audit({ action: "indicador.excluido", userId: s.user.id, userEmail: s.user.email, entity: "indicador", entityId: id });
   return { ok: true, message: "Indicador excluído." };
 }

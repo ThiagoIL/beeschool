@@ -10,7 +10,6 @@ export function friendlyDbError(err: unknown, fallback = "Não foi possível sal
   }
   if (code === "23505") {
     if (constraint.includes("email")) return "Já existe um usuário com este e-mail.";
-    if (constraint.includes("slug")) return "Este endereço (subdomínio) já está em uso.";
     if (constraint.includes("code")) return "Já existe um item com este código.";
     if (constraint.includes("name")) return "Já existe um registro com este nome.";
     return "Já existe um registro com estes dados.";

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { tenantSession } from "@/lib/context";
-import { withTenant } from "@/lib/db";
+import { appSession } from "@/lib/context";
+import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { companySettings } from "@/db/erp";
 
@@ -18,9 +18,9 @@ const sameOrigin = (req: NextRequest) => { const o = req.headers.get("origin"), 
 
 /** Logo da empresa (para quem está conectado nela). */
 export async function GET() {
-  const s = await tenantSession();
-  if (!s || !s.tenant) return new NextResponse(null, { status: 401 });
-  const [c] = await withTenant(s.tenant.id, (tx) => tx.select({ logo: companySettings.logo, mime: companySettings.logoMime }).from(companySettings).limit(1));
+  const s = await appSession();
+  if (!s) return new NextResponse(null, { status: 401 });
+  const [c] = await db.transaction((tx) => tx.select({ logo: companySettings.logo, mime: companySettings.logoMime }).from(companySettings).limit(1));
   if (!c?.logo || !c.mime) return new NextResponse(null, { status: 404 });
   return new NextResponse(Buffer.from(c.logo, "base64"), {
     headers: { "Content-Type": c.mime, "Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff" },
@@ -30,9 +30,9 @@ export async function GET() {
 /** Envia a logo (só o administrador da empresa). */
 export async function POST(req: NextRequest) {
   if (!sameOrigin(req)) return NextResponse.json({ error: "Origem não permitida." }, { status: 403 });
-  const s = await tenantSession();
-  if (!s || !s.tenant || s.user.mustChangePassword) return NextResponse.json({ error: "Sessão expirada. Entre novamente." }, { status: 401 });
-  if (s.user.role !== "TENANT_ADMIN") return NextResponse.json({ error: "Só o administrador pode trocar a logo." }, { status: 403 });
+  const s = await appSession();
+  if (!s || s.user.mustChangePassword) return NextResponse.json({ error: "Sessão expirada. Entre novamente." }, { status: 401 });
+  if (s.user.role !== "ADMIN") return NextResponse.json({ error: "Só o administrador pode trocar a logo." }, { status: 403 });
   const fd = await req.formData().catch(() => null);
   const file = fd?.get("file");
   if (!(file instanceof File) || !file.size) return NextResponse.json({ error: "Escolha a imagem da logo." }, { status: 400 });
@@ -40,21 +40,20 @@ export async function POST(req: NextRequest) {
   const buf = Buffer.from(await file.arrayBuffer());
   const mime = kindOf(buf);
   if (!mime) return NextResponse.json({ error: "Use uma imagem PNG, JPG ou WebP." }, { status: 400 });
-  const tenantId = s.tenant.id;
-  await withTenant(tenantId, async (tx) => {
+  await db.transaction(async (tx) => {
     const v = { logo: buf.toString("base64"), logoMime: mime, logoAt: new Date() };
     const r = await tx.update(companySettings).set(v).returning({ id: companySettings.id });
-    if (!r.length) await tx.insert(companySettings).values({ ...v, tenantId });
+    if (!r.length) await tx.insert(companySettings).values({ ...v });
   });
-  await audit({ action: "empresa.logo", tenantId, userId: s.user.id, userEmail: s.user.email });
+  await audit({ action: "empresa.logo", userId: s.user.id, userEmail: s.user.email });
   return NextResponse.json({ ok: true });
 }
 
 /** Remove a logo. */
 export async function DELETE(req: NextRequest) {
   if (!sameOrigin(req)) return NextResponse.json({ error: "Origem não permitida." }, { status: 403 });
-  const s = await tenantSession();
-  if (!s || !s.tenant || s.user.role !== "TENANT_ADMIN") return NextResponse.json({ error: "Só o administrador pode remover a logo." }, { status: 403 });
-  await withTenant(s.tenant.id, (tx) => tx.update(companySettings).set({ logo: null, logoMime: null, logoAt: null }));
+  const s = await appSession();
+  if (!s || s.user.role !== "ADMIN") return NextResponse.json({ error: "Só o administrador pode remover a logo." }, { status: 403 });
+  await db.transaction((tx) => tx.update(companySettings).set({ logo: null, logoMime: null, logoAt: null }));
   return NextResponse.json({ ok: true });
 }

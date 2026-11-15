@@ -10,8 +10,7 @@ FROM node:22-bookworm-slim AS build
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1 \
     DATABASE_URL=postgresql://build:build@localhost:5432/build \
-    ROOT_DOMAIN=build.local \
-    APP_SECRET=build-only-placeholder-not-used-at-runtime-000
+    AUTH_SECRET=build-only-placeholder-not-used-at-runtime-000
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build

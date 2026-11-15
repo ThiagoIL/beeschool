@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Criar nova senha", referrer: "no-ref
 
 export default async function Redefinir({ searchParams }: { searchParams: Promise<{ token?: string }> }) {
   const info = await requestArea();
-  if (info.area !== "tenant" && info.area !== "admin") notFound();
+  if (info.area !== "app") notFound();
   const token = ((await searchParams).token ?? "").slice(0, 100);
   return (
     <main className="login">

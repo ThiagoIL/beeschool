@@ -77,7 +77,7 @@ export type NavTab = { href: string; label: string };
 export type NavItem = { href: string; label: string; tabs?: NavTab[] };
 export type NavModule = { id: string; label: string; icon: IconName; href?: string; perm?: ModuleKey; items?: NavItem[] };
 
-export const TENANT_NAV: NavModule[] = [
+export const APP_NAV: NavModule[] = [
   { id: "inicio", label: "Início", icon: "home", href: "/" },
   {
     id: "financeiro", label: "Financeiro", icon: "money", perm: "financeiro", items: [
@@ -126,11 +126,11 @@ export const TENANT_NAV: NavModule[] = [
   },
 ];
 
-export const ADMIN_NAV: NavModule[] = [
-  { id: "painel", label: "Painel", icon: "home", href: "/" },
-  { id: "clientes", label: "Clientes", icon: "partner", href: "/clientes" },
-  { id: "administradores", label: "Administradores", icon: "users", href: "/administradores" },
-  { id: "auditoria", label: "Auditoria", icon: "doc", href: "/auditoria" },
+/** Menu do console do fornecedor; `base` é o caminho do console (ex.: /sistema-admin). */
+export const consoleNav = (base: string): NavModule[] => [
+  { id: "painel", label: "Licença e módulos", icon: "home", href: base },
+  { id: "administradores", label: "Administradores", icon: "users", href: `${base}/administradores` },
+  { id: "auditoria", label: "Auditoria", icon: "doc", href: `${base}/auditoria` },
 ];
 
 /** Encontra o módulo, o item e a aba do menu para um caminho (o prefixo mais longo vence). */

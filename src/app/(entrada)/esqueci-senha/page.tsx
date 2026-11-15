@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Esqueci minha senha" };
 
 export default async function Esqueci() {
   const info = await requestArea();
-  if (info.area !== "tenant" && info.area !== "admin") notFound();
+  if (info.area !== "app") notFound();
   return (
     <main className="login">
       <BrandPanel />

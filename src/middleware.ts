@@ -1,35 +1,44 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { parseHost } from "@/lib/host";
+import { AREA_HEADER, CONSOLE_INTERNAL, consoleBase, stripConsoleBase } from "@/lib/console-path";
 import { moduleForPath } from "@/lib/modules";
 
 /**
- * 1) Recusa domínios que não pertencem ao sistema (IP direto, domínio de terceiros).
- * 2) No sistema do cliente, confere em todo GET de página/exportação o acesso ao módulo da rota
- *    (catálogo em src/lib/modules.ts). Sem acesso → início com aviso; cliente bloqueado → "Acesso suspenso".
+ * Porta de entrada de todas as requisições:
+ *  - console do fornecedor, no caminho PLATFORM_ADMIN_PATH (padrão /sistema-admin) → telas internas /console/*;
+ *  - o caminho interno /console não existe fora dele (404);
+ *  - o resto é o sistema da escola: em todo GET de página/exportação confere o acesso ao módulo da rota
+ *    (catálogo em src/lib/modules.ts). Sem acesso → início com aviso; sistema bloqueado → "Acesso suspenso".
  *    As páginas repetem a verificação e as ações exigem EDIT (act()).
+ * O header AREA_HEADER é sempre sobrescrito aqui: o navegador não consegue escolher a área.
  */
 export async function middleware(req: NextRequest) {
-  const info = parseHost(req.headers.get("host"), process.env.ROOT_DOMAIN ?? "", process.env.ADMIN_SUBDOMAIN ?? "admin");
-  if (info.area === "unknown") return new NextResponse("Domínio não configurado.", { status: 404 });
-  if (info.area !== "tenant" || req.method !== "GET") return NextResponse.next();
+  const { pathname, search } = req.nextUrl;
+  const headers = new Headers(req.headers);
 
-  const path = req.nextUrl.pathname;
-  const mod = moduleForPath(path);
-  if (!mod) return NextResponse.next();
+  const inner = stripConsoleBase(pathname, consoleBase());
+  if (inner !== null) {
+    headers.set(AREA_HEADER, "console");
+    return NextResponse.rewrite(new URL(`${CONSOLE_INTERNAL}${inner === "/" ? "" : inner}${search}`, req.url), { request: { headers } });
+  }
+  if (pathname === CONSOLE_INTERNAL || pathname.startsWith(`${CONSOLE_INTERNAL}/`)) return new NextResponse("Não encontrado.", { status: 404 });
+
+  headers.set(AREA_HEADER, "app");
+  const next = () => NextResponse.next({ request: { headers } });
+  const mod = req.method === "GET" ? moduleForPath(pathname) : null;
+  if (!mod) return next();
 
   // importação tardia: só carrega o acesso ao banco quando a rota exige um módulo
-  const { COOKIE, findTenantBySlug, loadAccess, sessionFromToken, tenantBlocked } = await import("@/lib/session-core");
-  const isApi = path.startsWith("/api/");
+  const { APP_COOKIE, getSystem, loadAccess, sessionFromToken, systemBlocked } = await import("@/lib/session-core");
+  const isApi = pathname.startsWith("/api/");
   const deny = (to: string, status = 403) => isApi ? new NextResponse("Sem acesso.", { status }) : NextResponse.redirect(new URL(to, req.url));
 
-  const tenant = await findTenantBySlug(info.slug);
-  if (!tenant) return NextResponse.next(); // a página responde 404
-  if (tenantBlocked(tenant)) return deny("/suspenso", 423);
-  const s = await sessionFromToken(req.cookies.get(COOKIE)?.value, "TENANT", tenant.id);
+  const sys = await getSystem();
+  if (systemBlocked(sys)) return deny("/suspenso", 423);
+  const s = await sessionFromToken(req.cookies.get(APP_COOKIE)?.value, "APP");
   if (!s) return deny("/login", 401);
-  const access = await loadAccess(s.user, tenant);
+  const access = await loadAccess(s.user, sys);
   if (access.mods[mod] === "NONE") return deny(`/?erro=${encodeURIComponent("Seu perfil não tem acesso a essa área.")}`);
-  return NextResponse.next();
+  return next();
 }
 
 export const config = {

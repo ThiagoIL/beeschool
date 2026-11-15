@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
-import { withTenant, type Tx } from "@/lib/db";
+import { db, type Tx } from "@/lib/db";
 import * as E from "@/db/erp";
 import type { DreSection } from "@/lib/consts";
 
@@ -67,18 +67,18 @@ const DEFAULT_INDICATORS: { name: string; group?: string; cats?: string[]; light
 ];
 
 /** Cria (uma vez) os cadastros básicos para o sistema já sair usável. Pode rodar de novo sem duplicar. */
-export async function ensureDefaults(tenantId: string): Promise<void> {
-  if (done.has(tenantId)) return;
-  await withTenant(tenantId, async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${"defaults:" + tenantId}))`);
+export async function ensureDefaults(): Promise<void> {
+  if (done.has("main")) return;
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('bee:defaults'))`);
     const [cs] = await tx.select().from(E.companySettings).limit(1);
     if (cs && cs.defaultsVersion >= DEFAULTS_VERSION) return;
     const empty = async (t: PgTable) => (await tx.select({ c: sql<number>`count(*)::int` }).from(t))[0].c === 0;
 
     if (await empty(E.companies)) {
-      const [school] = await tx.insert(E.companies).values({ tenantId, name: "Bee School", color: "#E9AE20" }).returning();
-      const [light] = await tx.insert(E.companies).values({ tenantId, name: "Bee Light", color: "#1A1A1A" }).returning();
-      const acc = (companyId: string, name: string, kind = "BANCO") => ({ tenantId, companyId, name, kind, bank: name.replace(/ ·.*$/, "") });
+      const [school] = await tx.insert(E.companies).values({ name: "Bee School", color: "#E9AE20" }).returning();
+      const [light] = await tx.insert(E.companies).values({ name: "Bee Light", color: "#1A1A1A" }).returning();
+      const acc = (companyId: string, name: string, kind = "BANCO") => ({ companyId, name, kind, bank: name.replace(/ ·.*$/, "") });
       await tx.insert(E.bankAccounts).values([
         acc(school.id, "Inter"), acc(school.id, "C6"), acc(school.id, "Cora"), acc(school.id, "Itaú"), acc(school.id, "Sicredi 1"),
         acc(school.id, "Sicredi 2"), acc(school.id, "Nordeste"), acc(school.id, "Caixa dinheiro", "CAIXA"),
@@ -87,8 +87,8 @@ export async function ensureDefaults(tenantId: string): Promise<void> {
     }
     if (await empty(E.dreGroups)) {
       for (const [i, p] of DEFAULT_PLAN.entries()) {
-        const [g] = await tx.insert(E.dreGroups).values({ tenantId, name: p.group, section: p.section, position: (i + 1) * 10, isBase: !!p.base }).returning();
-        await tx.insert(E.finCategories).values(p.cats.map((name) => ({ tenantId, name, groupId: g.id })));
+        const [g] = await tx.insert(E.dreGroups).values({ name: p.group, section: p.section, position: (i + 1) * 10, isBase: !!p.base }).returning();
+        await tx.insert(E.finCategories).values(p.cats.map((name) => ({ name, groupId: g.id })));
       }
     }
     if (await empty(E.indicators)) {
@@ -99,17 +99,17 @@ export async function ensureDefaults(tenantId: string): Promise<void> {
         const groupId = d.group ? groups.get(d.group) ?? null : null;
         const categoryIds = (d.cats ?? []).map((c) => cats.get(c)).filter(Boolean) as string[];
         if (!groupId && !categoryIds.length) continue;
-        const [ind] = await tx.insert(E.indicators).values({ tenantId, name: d.name, groupId, categoryIds, position: (i + 1) * 10 }).returning();
-        if (light && d.light != null) await tx.insert(E.indicatorTargets).values({ tenantId, indicatorId: ind.id, companyId: light.id, targetPct: String(d.light) });
+        const [ind] = await tx.insert(E.indicators).values({ name: d.name, groupId, categoryIds, position: (i + 1) * 10 }).returning();
+        if (light && d.light != null) await tx.insert(E.indicatorTargets).values({ indicatorId: ind.id, companyId: light.id, targetPct: String(d.light) });
       }
     }
-    if (await empty(E.paymentMethods)) await tx.insert(E.paymentMethods).values(["PIX", "Boleto", "Transferência", "Cartão de crédito", "Cartão de débito", "Dinheiro", "Débito automático"].map((name) => ({ tenantId, name })));
-    if (await empty(E.finSituations)) await tx.insert(E.finSituations).values([["Aguardando aprovação", "#B7791F"], ["Aprovado para pagamento", "#2E7D4F"], ["Agendado", "#2F6E9A"]].map(([name, color]) => ({ tenantId, name, color })));
+    if (await empty(E.paymentMethods)) await tx.insert(E.paymentMethods).values(["PIX", "Boleto", "Transferência", "Cartão de crédito", "Cartão de débito", "Dinheiro", "Débito automático"].map((name) => ({ name })));
+    if (await empty(E.finSituations)) await tx.insert(E.finSituations).values([["Aguardando aprovação", "#B7791F"], ["Aprovado para pagamento", "#2E7D4F"], ["Agendado", "#2F6E9A"]].map(([name, color]) => ({ name, color })));
 
     if (cs) await tx.update(E.companySettings).set({ defaultsVersion: DEFAULTS_VERSION }).where(eq(E.companySettings.id, cs.id));
-    else await tx.insert(E.companySettings).values({ tenantId, defaultsVersion: DEFAULTS_VERSION });
+    else await tx.insert(E.companySettings).values({ defaultsVersion: DEFAULTS_VERSION });
   });
-  done.add(tenantId);
+  done.add("main");
 }
 
 // ------------------------------------------------------------------------------------
@@ -123,8 +123,8 @@ export async function namesById<T extends PgTable>(tx: Tx, table: T, idCol: PgCo
 }
 
 /** Endereço da logo da instituição (com versão), ou null. */
-export async function logoUrl(tenantId: string): Promise<string | null> {
-  const [c] = await withTenant(tenantId, (tx) => tx.select({ at: E.companySettings.logoAt }).from(E.companySettings).limit(1));
+export async function logoUrl(): Promise<string | null> {
+  const [c] = await db.select({ at: E.companySettings.logoAt }).from(E.companySettings).limit(1);
   return c?.at ? `/api/logo?v=${c.at.getTime()}` : null;
 }
 

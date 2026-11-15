@@ -1,1 +1,1 @@
-export { ImportPage as default } from "@/views/tenant/finance";
+export { ImportPage as default } from "@/views/app/finance";

@@ -1,1 +1,1 @@
-export { ProfilesPage as default } from "@/views/tenant/admin";
+export { ProfilesPage as default } from "@/views/app/admin";

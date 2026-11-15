@@ -20,13 +20,3 @@ export function toInput(v: string | number | null | undefined): string {
   const n = Number(v ?? 0);
   return n ? String(n).replace(".", ",") : "";
 }
-const scheme = () => {
-  const secure = process.env.COOKIE_SECURE ? process.env.COOKIE_SECURE === "true" : process.env.NODE_ENV === "production";
-  return secure ? "https" : "http";
-};
-export function tenantUrl(slug: string): string {
-  return `${scheme()}://${slug}.${process.env.ROOT_DOMAIN ?? ""}`;
-}
-export function adminUrl(): string {
-  return `${scheme()}://${process.env.ADMIN_SUBDOMAIN ?? "admin"}.${process.env.ROOT_DOMAIN ?? ""}`;
-}

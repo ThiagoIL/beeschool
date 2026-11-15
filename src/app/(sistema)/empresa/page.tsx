@@ -1,1 +1,1 @@
-export { CompanyPage as default } from "@/views/tenant/admin";
+export { CompanyPage as default } from "@/views/app/admin";

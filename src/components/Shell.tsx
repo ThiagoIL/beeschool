@@ -37,12 +37,13 @@ function CtxLogo({ src }: { src: string }) {
 }
 
 /** Moldura do sistema: menu lateral por módulo (como no protótipo), barra superior e avisos. */
-export function Shell({ nav, context, logo, user, roleLabel, readOnly, children }: {
-  nav: NavModule[]; context?: string; /** endereço da logo da empresa */ logo?: string | null; user: { name: string; email: string }; roleLabel: string;
+export function Shell({ nav, base = "", context, logo, user, roleLabel, readOnly, children }: {
+  nav: NavModule[]; /** prefixo da área ("" na escola, "/sistema-admin" no console) */ base?: string; context?: string; /** endereço da logo da empresa */ logo?: string | null; user: { name: string; email: string }; roleLabel: string;
   /** módulos em que o usuário só consulta */
   readOnly?: string[]; children: ReactNode;
 }) {
   const path = usePathname() ?? "/";
+  const home = base || "/", conta = `${base}/conta`;
   const cur = matchNav(nav, path);
   const [open, setOpen] = useState(false); // menu no celular
   const [fold, setFold] = useState<string | null>(null); // módulo atual recolhido
@@ -53,7 +54,7 @@ export function Shell({ nav, context, logo, user, roleLabel, readOnly, children 
   return (
     <div className={`app${open ? " open" : ""}`}>
       <aside className="rail" aria-label="Menu principal">
-        <div className="brand"><Link href="/" aria-label="Início"><LogoLockup dark /></Link></div>
+        <div className="brand"><Link href={home} aria-label="Início"><LogoLockup dark /></Link></div>
         {context && <div className={`ctx${logo ? " has-logo" : ""}`}>{logo && <CtxLogo src={logo} />}<span>Instituição</span><b>{context}</b></div>}
         <nav className="nav">
           {nav.map((m) => {
@@ -84,16 +85,16 @@ export function Shell({ nav, context, logo, user, roleLabel, readOnly, children 
         <header className="top">
           <button className="btn btn-ghost btn-icon menu-btn" type="button" aria-label="Abrir menu" onClick={() => setOpen(!open)}><Icon name="menu" /></button>
           <div className="crumb">
-            {cur?.item ? <>{cur.mod.label} <span aria-hidden="true">›</span> <b>{cur.item.label}</b></> : <b>{cur?.mod.label ?? (path.startsWith("/conta") ? "Minha conta" : "")}</b>}
+            {cur?.item ? <>{cur.mod.label} <span aria-hidden="true">›</span> <b>{cur.item.label}</b></> : <b>{cur?.mod.label ?? (path.startsWith(conta) ? "Minha conta" : "")}</b>}
             {ro && <span className="ro-chip">Somente consulta</span>}
           </div>
           <div className="top-right">
-            <Link className="user" href="/conta" title={`${user.email} · ${roleLabel}`} style={{ textDecoration: "none", color: "inherit" }}>
+            <Link className="user" href={conta} title={`${user.email} · ${roleLabel}`} style={{ textDecoration: "none", color: "inherit" }}>
               <span className="avatar">{initials(user.name)}</span>
               <span className="uname">{user.name}<small>{roleLabel}</small></span>
             </Link>
             <button className="btn btn-ghost btn-icon" type="button" aria-label="Sair" title="Sair"
-              onClick={async () => { if (confirm("Sair do sistema?")) { await logoutAction(); window.location.assign("/login"); } }}>
+              onClick={async () => { if (confirm("Sair do sistema?")) { await logoutAction(); window.location.assign(`${base}/login`); } }}>
               <Icon name="logout" />
             </button>
           </div>

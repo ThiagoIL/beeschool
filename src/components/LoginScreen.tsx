@@ -17,7 +17,9 @@ export function LoginScreen({ title, subtitle, tag, admin }: { title: string; su
             {admin && <Field name="codigo" label="Código do autenticador" autoComplete="one-time-code" maxLength={6} hint="Só se você ativou a autenticação em dois fatores em Minha conta. Caso contrário, deixe em branco." />}
             <Submit block pending="Entrando…">Entrar</Submit>
           </Form>
-          <p className="login-row"><Link href="/esqueci-senha">Esqueci minha senha</Link></p>
+          {admin
+            ? <p className="login-row muted" style={{ fontSize: 13 }}>Esqueceu a senha? Peça a outro administrador do console para redefinir.</p>
+            : <p className="login-row"><Link href="/esqueci-senha">Esqueci minha senha</Link></p>}
         </div>
       </section>
     </main>

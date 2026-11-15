@@ -3,10 +3,12 @@ import { z } from "zod";
 
 const schema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL é obrigatória"),
-  ROOT_DOMAIN: z.string().min(1, "ROOT_DOMAIN é obrigatório (ex.: beeschool.com.br)"),
-  ADMIN_SUBDOMAIN: z.string().regex(/^[a-z0-9-]+$/).default("admin"),
   /** chave para cifrar os segredos do 2FA (mínimo 32 caracteres; nunca troque depois de em uso) */
-  APP_SECRET: z.string().min(32, "APP_SECRET precisa ter pelo menos 32 caracteres"),
+  AUTH_SECRET: z.string().min(32, "AUTH_SECRET precisa ter pelo menos 32 caracteres"),
+  /** endereço público do sistema (ex.: https://sistema.beeschool.com.br), usado nos links dos e-mails */
+  APP_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url("APP_URL precisa ser um endereço completo, com https://").optional()),
+  /** caminho do console do fornecedor (padrão /sistema-admin; escolha algo pouco óbvio) */
+  PLATFORM_ADMIN_PATH: z.string().optional(),
   COOKIE_SECURE: z.enum(["true", "false"]).optional(),
   SESSION_HOURS: z.coerce.number().int().min(1).max(72).default(12),
   SESSION_IDLE_MINUTES: z.coerce.number().int().min(5).max(24 * 60).default(120),

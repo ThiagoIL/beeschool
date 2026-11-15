@@ -1,7 +1,7 @@
 /**
  * Autenticação em dois fatores (TOTP, RFC 6238: 6 dígitos, 30 s, SHA-1), compatível com
  * Google Authenticator, Microsoft Authenticator, Authy etc. Sem dependências.
- * O segredo é guardado cifrado (AES-256-GCM) com a chave derivada de APP_SECRET.
+ * O segredo é guardado cifrado (AES-256-GCM) com a chave derivada de AUTH_SECRET.
  */
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 

@@ -1,1 +1,1 @@
-export { TenantUsers as default } from "@/views/tenant/users";
+export { AppUsers as default } from "@/views/app/users";

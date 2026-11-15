@@ -1,1 +1,1 @@
-export { TargetsPage as default } from "@/views/tenant/panels";
+export { TargetsPage as default } from "@/views/app/panels";

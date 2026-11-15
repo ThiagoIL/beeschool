@@ -1,6 +1,6 @@
 {
-  "id": "39bf5f14-bdf0-4da8-881f-b628b57c147e",
-  "prevId": "f4c5065d-a2b0-409d-80a3-5d12120554fe",
+  "id": "c390dc38-2059-4f25-9b20-e40e5e87609b",
+  "prevId": "53d212b2-32fb-4e27-9169-f4127d3235dc",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -14,11 +14,12 @@
           "primaryKey": true,
           "notNull": true
         },
-        "tenant_id": {
-          "name": "tenant_id",
+        "area": {
+          "name": "area",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "'APP'"
         },
         "user_id": {
           "name": "user_id",
@@ -71,11 +72,11 @@
         }
       },
       "indexes": {
-        "audit_tenant_created_idx": {
-          "name": "audit_tenant_created_idx",
+        "audit_area_created_idx": {
+          "name": "audit_area_created_idx",
           "columns": [
             {
-              "expression": "tenant_id",
+              "expression": "area",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -262,12 +263,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "area": {
           "name": "area",
           "type": "session_area",
@@ -369,37 +364,27 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.tenants": {
-      "name": "tenants",
+    "public.system_settings": {
+      "name": "system_settings",
       "schema": "",
       "columns": {
         "id": {
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true
-        },
-        "slug": {
-          "name": "slug",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": "'main'"
         },
         "name": {
           "name": "name",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
-        },
-        "document": {
-          "name": "document",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "'Bee School'"
         },
         "status": {
           "name": "status",
-          "type": "tenant_status",
+          "type": "system_status",
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true,
@@ -467,17 +452,14 @@
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "tenants_slug_unique": {
-          "name": "tenants_slug_unique",
-          "columns": [
-            "slug"
-          ],
-          "nullsNotDistinct": false
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "system_settings_single": {
+          "name": "system_settings_single",
+          "value": "\"system_settings\".\"id\" = 'main'"
         }
       },
-      "policies": {},
-      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.users": {
@@ -489,12 +471,6 @@
           "type": "text",
           "primaryKey": true,
           "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "name": {
           "name": "name",
@@ -609,30 +585,8 @@
         }
       },
       "indexes": {
-        "users_tenant_email_uq": {
-          "name": "users_tenant_email_uq",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "email",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "with": {},
-          "method": "btree",
-          "where": "\"users\".\"tenant_id\" is not null",
-          "concurrently": false
-        },
-        "users_system_email_uq": {
-          "name": "users_system_email_uq",
+        "users_app_email_uq": {
+          "name": "users_app_email_uq",
           "columns": [
             {
               "expression": "email",
@@ -644,40 +598,27 @@
           "isUnique": true,
           "with": {},
           "method": "btree",
-          "where": "\"users\".\"tenant_id\" is null",
+          "where": "\"users\".\"role\" <> 'SUPER_ADMIN'",
           "concurrently": false
         },
-        "users_tenant_idx": {
-          "name": "users_tenant_idx",
+        "users_console_email_uq": {
+          "name": "users_console_email_uq",
           "columns": [
             {
-              "expression": "tenant_id",
+              "expression": "email",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             }
           ],
-          "isUnique": false,
+          "isUnique": true,
           "with": {},
           "method": "btree",
+          "where": "\"users\".\"role\" = 'SUPER_ADMIN'",
           "concurrently": false
         }
       },
-      "foreignKeys": {
-        "users_tenant_id_tenants_id_fk": {
-          "name": "users_tenant_id_tenants_id_fk",
-          "tableFrom": "users",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "restrict"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -692,12 +633,6 @@
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "text",
-          "primaryKey": false,
           "notNull": true
         },
         "created_at": {
@@ -739,12 +674,6 @@
           "name": "access_profiles_name_uq",
           "columns": [
             {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
               "expression": "name",
               "isExpression": false,
               "asc": true,
@@ -757,32 +686,9 @@
           "concurrently": false
         }
       },
-      "foreignKeys": {
-        "access_profiles_tenant_id_tenants_id_fk": {
-          "name": "access_profiles_tenant_id_tenants_id_fk",
-          "tableFrom": "access_profiles",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "access_profiles_tid_uq": {
-          "name": "access_profiles_tid_uq",
-          "columns": [
-            "tenant_id",
-            "id"
-          ],
-          "nullsNotDistinct": false
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -795,12 +701,6 @@
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "text",
-          "primaryKey": false,
           "notNull": true
         },
         "created_at": {
@@ -880,12 +780,6 @@
           "name": "bank_accounts_name_uq",
           "columns": [
             {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
               "expression": "name",
               "isExpression": false,
               "asc": true,
@@ -899,29 +793,14 @@
         }
       },
       "foreignKeys": {
-        "bank_accounts_tenant_id_tenants_id_fk": {
-          "name": "bank_accounts_tenant_id_tenants_id_fk",
-          "tableFrom": "bank_accounts",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
-        },
         "bank_accounts_company_fk": {
           "name": "bank_accounts_company_fk",
           "tableFrom": "bank_accounts",
           "columnsFrom": [
-            "tenant_id",
             "company_id"
           ],
           "tableTo": "companies",
           "columnsTo": [
-            "tenant_id",
             "id"
           ],
           "onUpdate": "no action",
@@ -929,16 +808,7 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "bank_accounts_tid_uq": {
-          "name": "bank_accounts_tid_uq",
-          "columns": [
-            "tenant_id",
-            "id"
-          ],
-          "nullsNotDistinct": false
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -951,12 +821,6 @@
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "text",
-          "primaryKey": false,
           "notNull": true
         },
         "created_at": {
@@ -1012,29 +876,14 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "bank_entries_tenant_id_tenants_id_fk": {
-          "name": "bank_entries_tenant_id_tenants_id_fk",
-          "tableFrom": "bank_entries",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
-        },
         "bank_entries_bank_fk": {
           "name": "bank_entries_bank_fk",
           "tableFrom": "bank_entries",
           "columnsFrom": [
-            "tenant_id",
             "bank_account_id"
           ],
           "tableTo": "bank_accounts",
           "columnsTo": [
-            "tenant_id",
             "id"
           ],
           "onUpdate": "no action",
@@ -1042,16 +891,7 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "bank_entries_tid_uq": {
-          "name": "bank_entries_tid_uq",
-          "columns": [
-            "tenant_id",
-            "id"
-          ],
-          "nullsNotDistinct": false
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1064,12 +904,6 @@
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "text",
-          "primaryKey": false,
           "notNull": true
         },
         "created_at": {
@@ -1135,12 +969,6 @@
           "name": "classes_name_uq",
           "columns": [
             {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
               "expression": "year",
               "isExpression": false,
               "asc": true,
@@ -1160,29 +988,14 @@
         }
       },
       "foreignKeys": {
-        "classes_tenant_id_tenants_id_fk": {
-          "name": "classes_tenant_id_tenants_id_fk",
-          "tableFrom": "classes",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
-        },
         "classes_company_fk": {
           "name": "classes_company_fk",
           "tableFrom": "classes",
           "columnsFrom": [
-            "tenant_id",
             "company_id"
           ],
           "tableTo": "companies",
           "columnsTo": [
-            "tenant_id",
             "id"
           ],
           "onUpdate": "no action",
@@ -1190,16 +1003,7 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "classes_tid_uq": {
-          "name": "classes_tid_uq",
-          "columns": [
-            "tenant_id",
-            "id"
-          ],
-          "nullsNotDistinct": false
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1212,12 +1016,6 @@
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "text",
-          "primaryKey": false,
           "notNull": true
         },
         "created_at": {
@@ -1266,12 +1064,6 @@
           "name": "companies_name_uq",
           "columns": [
             {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
               "expression": "name",
               "isExpression": false,
               "asc": true,
@@ -1284,32 +1076,9 @@
           "concurrently": false
         }
       },
-      "foreignKeys": {
-        "companies_tenant_id_tenants_id_fk": {
-          "name": "companies_tenant_id_tenants_id_fk",
-          "tableFrom": "companies",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "companies_tid_uq": {
-          "name": "companies_tid_uq",
-          "columns": [
-            "tenant_id",
-            "id"
-          ],
-          "nullsNotDistinct": false
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1322,13 +1091,8 @@
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": "'main'"
         },
         "created_at": {
           "name": "created_at",
@@ -1419,51 +1183,17 @@
           "default": 0
         }
       },
-      "indexes": {
-        "company_settings_tenant_uq": {
-          "name": "company_settings_tenant_uq",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        }
-      },
-      "foreignKeys": {
-        "company_settings_tenant_id_tenants_id_fk": {
-          "name": "company_settings_tenant_id_tenants_id_fk",
-          "tableFrom": "company_settings",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
-        }
-      },
+      "indexes": {},
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "company_settings_tid_uq": {
-          "name": "company_settings_tid_uq",
-          "columns": [
-            "tenant_id",
-            "id"
-          ],
-          "nullsNotDistinct": false
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "company_settings_single": {
+          "name": "company_settings_single",
+          "value": "\"company_settings\".\"id\" = 'main'"
         }
       },
-      "policies": {},
-      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.dre_groups": {
@@ -1474,12 +1204,6 @@
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "text",
-          "primaryKey": false,
           "notNull": true
         },
         "created_at": {
@@ -1535,12 +1259,6 @@
           "name": "dre_groups_name_uq",
           "columns": [
             {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
               "expression": "name",
               "isExpression": false,
               "asc": true,
@@ -1553,32 +1271,9 @@
           "concurrently": false
         }
       },
-      "foreignKeys": {
-        "dre_groups_tenant_id_tenants_id_fk": {
-          "name": "dre_groups_tenant_id_tenants_id_fk",
-          "tableFrom": "dre_groups",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "dre_groups_tid_uq": {
-          "name": "dre_groups_tid_uq",
-          "columns": [
-            "tenant_id",
-            "id"
-          ],
-          "nullsNotDistinct": false
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1591,12 +1286,6 @@
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "text",
-          "primaryKey": false,
           "notNull": true
         },
         "created_at": {
@@ -1638,12 +1327,6 @@
           "name": "fin_categories_name_uq",
           "columns": [
             {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
               "expression": "name",
               "isExpression": false,
               "asc": true,
@@ -1657,29 +1340,14 @@
         }
       },
       "foreignKeys": {
-        "fin_categories_tenant_id_tenants_id_fk": {
-          "name": "fin_categories_tenant_id_tenants_id_fk",
-          "tableFrom": "fin_categories",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
-        },
         "fin_categories_group_fk": {
           "name": "fin_categories_group_fk",
           "tableFrom": "fin_categories",
           "columnsFrom": [
-            "tenant_id",
             "group_id"
           ],
           "tableTo": "dre_groups",
           "columnsTo": [
-            "tenant_id",
             "id"
           ],
           "onUpdate": "no action",
@@ -1687,16 +1355,7 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "fin_categories_tid_uq": {
-          "name": "fin_categories_tid_uq",
-          "columns": [
-            "tenant_id",
-            "id"
-          ],
-          "nullsNotDistinct": false
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1709,12 +1368,6 @@
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "text",
-          "primaryKey": false,
           "notNull": true
         },
         "created_at": {
@@ -1765,29 +1418,14 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "fin_imports_tenant_id_tenants_id_fk": {
-          "name": "fin_imports_tenant_id_tenants_id_fk",
-          "tableFrom": "fin_imports",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
-        },
         "fin_imports_bank_fk": {
           "name": "fin_imports_bank_fk",
           "tableFrom": "fin_imports",
           "columnsFrom": [
-            "tenant_id",
             "bank_account_id"
           ],
           "tableTo": "bank_accounts",
           "columnsTo": [
-            "tenant_id",
             "id"
           ],
           "onUpdate": "no action",
@@ -1795,16 +1433,7 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "fin_imports_tid_uq": {
-          "name": "fin_imports_tid_uq",
-          "columns": [
-            "tenant_id",
-            "id"
-          ],
-          "nullsNotDistinct": false
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1817,12 +1446,6 @@
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "text",
-          "primaryKey": false,
           "notNull": true
         },
         "created_at": {
@@ -1861,32 +1484,9 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {
-        "fin_situations_tenant_id_tenants_id_fk": {
-          "name": "fin_situations_tenant_id_tenants_id_fk",
-          "tableFrom": "fin_situations",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "fin_situations_tid_uq": {
-          "name": "fin_situations_tid_uq",
-          "columns": [
-            "tenant_id",
-            "id"
-          ],
-          "nullsNotDistinct": false
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1899,12 +1499,6 @@
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "text",
-          "primaryKey": false,
           "notNull": true
         },
         "created_at": {
@@ -2067,12 +1661,6 @@
           "name": "fin_titles_due_idx",
           "columns": [
             {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
               "expression": "kind",
               "isExpression": false,
               "asc": true,
@@ -2093,12 +1681,6 @@
         "fin_titles_paid_idx": {
           "name": "fin_titles_paid_idx",
           "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
             {
               "expression": "status",
               "isExpression": false,
@@ -2121,12 +1703,6 @@
           "name": "fin_titles_origin_idx",
           "columns": [
             {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
               "expression": "origin_type",
               "isExpression": false,
               "asc": true,
@@ -2148,12 +1724,6 @@
           "name": "fin_titles_tuition_uq",
           "columns": [
             {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
               "expression": "student_id",
               "isExpression": false,
               "asc": true,
@@ -2174,29 +1744,14 @@
         }
       },
       "foreignKeys": {
-        "fin_titles_tenant_id_tenants_id_fk": {
-          "name": "fin_titles_tenant_id_tenants_id_fk",
-          "tableFrom": "fin_titles",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
-        },
         "fin_titles_company_fk": {
           "name": "fin_titles_company_fk",
           "tableFrom": "fin_titles",
           "columnsFrom": [
-            "tenant_id",
             "company_id"
           ],
           "tableTo": "companies",
           "columnsTo": [
-            "tenant_id",
             "id"
           ],
           "onUpdate": "no action",
@@ -2206,12 +1761,10 @@
           "name": "fin_titles_person_fk",
           "tableFrom": "fin_titles",
           "columnsFrom": [
-            "tenant_id",
             "person_id"
           ],
           "tableTo": "people",
           "columnsTo": [
-            "tenant_id",
             "id"
           ],
           "onUpdate": "no action",
@@ -2221,12 +1774,10 @@
           "name": "fin_titles_student_fk",
           "tableFrom": "fin_titles",
           "columnsFrom": [
-            "tenant_id",
             "student_id"
           ],
           "tableTo": "students",
           "columnsTo": [
-            "tenant_id",
             "id"
           ],
           "onUpdate": "no action",
@@ -2236,12 +1787,10 @@
           "name": "fin_titles_cat_fk",
           "tableFrom": "fin_titles",
           "columnsFrom": [
-            "tenant_id",
             "category_id"
           ],
           "tableTo": "fin_categories",
           "columnsTo": [
-            "tenant_id",
             "id"
           ],
           "onUpdate": "no action",
@@ -2251,12 +1800,10 @@
           "name": "fin_titles_pm_fk",
           "tableFrom": "fin_titles",
           "columnsFrom": [
-            "tenant_id",
             "payment_method_id"
           ],
           "tableTo": "payment_methods",
           "columnsTo": [
-            "tenant_id",
             "id"
           ],
           "onUpdate": "no action",
@@ -2266,12 +1813,10 @@
           "name": "fin_titles_bank_fk",
           "tableFrom": "fin_titles",
           "columnsFrom": [
-            "tenant_id",
             "bank_account_id"
           ],
           "tableTo": "bank_accounts",
           "columnsTo": [
-            "tenant_id",
             "id"
           ],
           "onUpdate": "no action",
@@ -2281,12 +1826,10 @@
           "name": "fin_titles_sit_fk",
           "tableFrom": "fin_titles",
           "columnsFrom": [
-            "tenant_id",
             "situation_id"
           ],
           "tableTo": "fin_situations",
           "columnsTo": [
-            "tenant_id",
             "id"
           ],
           "onUpdate": "no action",
@@ -2294,16 +1837,7 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "fin_titles_tid_uq": {
-          "name": "fin_titles_tid_uq",
-          "columns": [
-            "tenant_id",
-            "id"
-          ],
-          "nullsNotDistinct": false
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -2316,12 +1850,6 @@
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "text",
-          "primaryKey": false,
           "notNull": true
         },
         "created_at": {
@@ -2362,12 +1890,6 @@
           "name": "indicator_targets_uq",
           "columns": [
             {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
               "expression": "indicator_id",
               "isExpression": false,
               "asc": true,
@@ -2387,29 +1909,14 @@
         }
       },
       "foreignKeys": {
-        "indicator_targets_tenant_id_tenants_id_fk": {
-          "name": "indicator_targets_tenant_id_tenants_id_fk",
-          "tableFrom": "indicator_targets",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
-        },
         "indicator_targets_ind_fk": {
           "name": "indicator_targets_ind_fk",
           "tableFrom": "indicator_targets",
           "columnsFrom": [
-            "tenant_id",
             "indicator_id"
           ],
           "tableTo": "indicators",
           "columnsTo": [
-            "tenant_id",
             "id"
           ],
           "onUpdate": "no action",
@@ -2419,12 +1926,10 @@
           "name": "indicator_targets_company_fk",
           "tableFrom": "indicator_targets",
           "columnsFrom": [
-            "tenant_id",
             "company_id"
           ],
           "tableTo": "companies",
           "columnsTo": [
-            "tenant_id",
             "id"
           ],
           "onUpdate": "no action",
@@ -2432,16 +1937,7 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "indicator_targets_tid_uq": {
-          "name": "indicator_targets_tid_uq",
-          "columns": [
-            "tenant_id",
-            "id"
-          ],
-          "nullsNotDistinct": false
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -2454,12 +1950,6 @@
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "text",
-          "primaryKey": false,
           "notNull": true
         },
         "created_at": {
@@ -2512,29 +2002,14 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "indicators_tenant_id_tenants_id_fk": {
-          "name": "indicators_tenant_id_tenants_id_fk",
-          "tableFrom": "indicators",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
-        },
         "indicators_group_fk": {
           "name": "indicators_group_fk",
           "tableFrom": "indicators",
           "columnsFrom": [
-            "tenant_id",
             "group_id"
           ],
           "tableTo": "dre_groups",
           "columnsTo": [
-            "tenant_id",
             "id"
           ],
           "onUpdate": "no action",
@@ -2542,16 +2017,7 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "indicators_tid_uq": {
-          "name": "indicators_tid_uq",
-          "columns": [
-            "tenant_id",
-            "id"
-          ],
-          "nullsNotDistinct": false
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -2564,12 +2030,6 @@
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "text",
-          "primaryKey": false,
           "notNull": true
         },
         "created_at": {
@@ -2605,12 +2065,6 @@
           "name": "payment_methods_name_uq",
           "columns": [
             {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
               "expression": "name",
               "isExpression": false,
               "asc": true,
@@ -2623,32 +2077,9 @@
           "concurrently": false
         }
       },
-      "foreignKeys": {
-        "payment_methods_tenant_id_tenants_id_fk": {
-          "name": "payment_methods_tenant_id_tenants_id_fk",
-          "tableFrom": "payment_methods",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "payment_methods_tid_uq": {
-          "name": "payment_methods_tid_uq",
-          "columns": [
-            "tenant_id",
-            "id"
-          ],
-          "nullsNotDistinct": false
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -2661,12 +2092,6 @@
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "text",
-          "primaryKey": false,
           "notNull": true
         },
         "created_at": {
@@ -2733,12 +2158,6 @@
           "name": "people_name_idx",
           "columns": [
             {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
               "expression": "name",
               "isExpression": false,
               "asc": true,
@@ -2751,32 +2170,9 @@
           "concurrently": false
         }
       },
-      "foreignKeys": {
-        "people_tenant_id_tenants_id_fk": {
-          "name": "people_tenant_id_tenants_id_fk",
-          "tableFrom": "people",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "people_tid_uq": {
-          "name": "people_tid_uq",
-          "columns": [
-            "tenant_id",
-            "id"
-          ],
-          "nullsNotDistinct": false
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -2785,16 +2181,10 @@
       "name": "sequences",
       "schema": "",
       "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
         "key": {
           "name": "key",
           "type": "text",
-          "primaryKey": false,
+          "primaryKey": true,
           "notNull": true
         },
         "value": {
@@ -2806,30 +2196,8 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {
-        "sequences_tenant_id_tenants_id_fk": {
-          "name": "sequences_tenant_id_tenants_id_fk",
-          "tableFrom": "sequences",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
-        }
-      },
-      "compositePrimaryKeys": {
-        "sequences_pk": {
-          "name": "sequences_pk",
-          "columns": [
-            "tenant_id",
-            "key"
-          ]
-        }
-      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
@@ -2843,12 +2211,6 @@
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "text",
-          "primaryKey": false,
           "notNull": true
         },
         "created_at": {
@@ -2941,12 +2303,6 @@
           "name": "students_name_idx",
           "columns": [
             {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
               "expression": "name",
               "isExpression": false,
               "asc": true,
@@ -2960,29 +2316,14 @@
         }
       },
       "foreignKeys": {
-        "students_tenant_id_tenants_id_fk": {
-          "name": "students_tenant_id_tenants_id_fk",
-          "tableFrom": "students",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
-        },
         "students_company_fk": {
           "name": "students_company_fk",
           "tableFrom": "students",
           "columnsFrom": [
-            "tenant_id",
             "company_id"
           ],
           "tableTo": "companies",
           "columnsTo": [
-            "tenant_id",
             "id"
           ],
           "onUpdate": "no action",
@@ -2992,12 +2333,10 @@
           "name": "students_class_fk",
           "tableFrom": "students",
           "columnsFrom": [
-            "tenant_id",
             "class_id"
           ],
           "tableTo": "classes",
           "columnsTo": [
-            "tenant_id",
             "id"
           ],
           "onUpdate": "no action",
@@ -3007,12 +2346,10 @@
           "name": "students_guardian_fk",
           "tableFrom": "students",
           "columnsFrom": [
-            "tenant_id",
             "guardian_id"
           ],
           "tableTo": "people",
           "columnsTo": [
-            "tenant_id",
             "id"
           ],
           "onUpdate": "no action",
@@ -3020,16 +2357,7 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "students_tid_uq": {
-          "name": "students_tid_uq",
-          "columns": [
-            "tenant_id",
-            "id"
-          ],
-          "nullsNotDistinct": false
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -3041,20 +2369,20 @@
       "schema": "public",
       "values": [
         "SUPER_ADMIN",
-        "TENANT_ADMIN",
-        "TENANT_USER"
+        "ADMIN",
+        "USER"
       ]
     },
     "public.session_area": {
       "name": "session_area",
       "schema": "public",
       "values": [
-        "ADMIN",
-        "TENANT"
+        "CONSOLE",
+        "APP"
       ]
     },
-    "public.tenant_status": {
-      "name": "tenant_status",
+    "public.system_status": {
+      "name": "system_status",
       "schema": "public",
       "values": [
         "ACTIVE",

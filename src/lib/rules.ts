@@ -2,11 +2,12 @@
  * Regras de permissão sobre usuários. Funções puras (sem banco) para poderem ser testadas.
  * As regras críticas também são garantidas por gatilhos no banco (migração 0001).
  */
-export type Role = "SUPER_ADMIN" | "TENANT_ADMIN" | "TENANT_USER";
+/** SUPER_ADMIN = console do fornecedor; ADMIN e USER = escola. */
+export type Role = "SUPER_ADMIN" | "ADMIN" | "USER";
 export type Status = "ACTIVE" | "INACTIVE";
 
-export interface Actor { id: string; role: Role; tenantId: string | null }
-export interface Target { id: string; role: Role; tenantId: string | null; isMaster: boolean; status: Status }
+export interface Actor { id: string; role: Role }
+export interface Target { id: string; role: Role; isMaster: boolean; status: Status }
 
 export type Verdict = { ok: true } | { ok: false; reason: string };
 const ok: Verdict = { ok: true };
@@ -14,23 +15,23 @@ const no = (reason: string): Verdict => ({ ok: false, reason });
 
 export const ROLE_LABEL: Record<Role, string> = {
   SUPER_ADMIN: "Administrador do sistema",
-  TENANT_ADMIN: "Administrador",
-  TENANT_USER: "Usuário",
+  ADMIN: "Administrador",
+  USER: "Usuário",
 };
 
 /** O ator pode administrar (ver e editar) este usuário? */
 export function canManage(actor: Actor, target: Target): Verdict {
-  if (actor.role === "SUPER_ADMIN") return ok; // administrador do sistema gerencia todos
-  if (actor.role === "TENANT_ADMIN") {
-    if (target.role === "SUPER_ADMIN" || target.tenantId !== actor.tenantId) return no("Usuário não encontrado.");
+  if (actor.role === "SUPER_ADMIN") return ok; // administrador do console gerencia todos
+  if (actor.role === "ADMIN") {
+    if (target.role === "SUPER_ADMIN") return no("Usuário não encontrado."); // contas do console não aparecem para a escola
     return ok;
   }
   return no("Você não tem permissão para gerenciar usuários.");
 }
 
-/** Níveis que o ator pode atribuir a usuários de uma empresa. */
-export function assignableTenantRoles(actor: Actor): Role[] {
-  return actor.role === "SUPER_ADMIN" || actor.role === "TENANT_ADMIN" ? ["TENANT_ADMIN", "TENANT_USER"] : [];
+/** Níveis que o ator pode atribuir a usuários da escola. */
+export function assignableSchoolRoles(actor: Actor): Role[] {
+  return actor.role === "SUPER_ADMIN" || actor.role === "ADMIN" ? ["ADMIN", "USER"] : [];
 }
 
 export function canChangeRole(actor: Actor, target: Target, newRole: Role): Verdict {
@@ -38,9 +39,9 @@ export function canChangeRole(actor: Actor, target: Target, newRole: Role): Verd
   if (newRole === target.role) return ok;
   if (actor.id === target.id) return no("Você não pode alterar o seu próprio nível de acesso.");
   if (target.isMaster) return no("O nível de acesso da conta master não pode ser alterado.");
-  // usuários do sistema e das empresas são escopos diferentes: não se troca de um para o outro
-  if ((target.role === "SUPER_ADMIN") !== (newRole === "SUPER_ADMIN")) return no("Não é possível mover um usuário entre o sistema e uma empresa.");
-  if (!assignableTenantRoles(actor).includes(newRole)) return no("Nível de acesso não permitido.");
+  // contas do console e da escola são separadas: não se troca de uma para a outra
+  if ((target.role === "SUPER_ADMIN") !== (newRole === "SUPER_ADMIN")) return no("Não é possível transformar uma conta do console em conta da escola, nem o contrário.");
+  if (!assignableSchoolRoles(actor).includes(newRole)) return no("Nível de acesso não permitido.");
   return ok;
 }
 

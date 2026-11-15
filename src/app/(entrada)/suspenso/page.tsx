@@ -1,18 +1,17 @@
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { BrandPanel } from "@/components/Brand";
-import { currentTenant } from "@/lib/context";
-import { tenantBlocked } from "@/lib/session-core";
+import { getSystem } from "@/lib/context";
+import { systemBlocked } from "@/lib/session-core";
 import { Icon } from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Acesso suspenso" };
 
-/** Tela mostrada enquanto o cliente está bloqueado (manual ou licença vencida). Vale na hora: cada requisição confere. */
+/** Tela mostrada enquanto o sistema está bloqueado (manual ou licença vencida). Vale na hora: cada requisição confere. */
 export default async function Suspenso() {
-  const t = await currentTenant().catch(() => null);
-  if (!t) notFound();
-  const b = tenantBlocked(t);
+  const t = await getSystem();
+  const b = systemBlocked(t);
   if (!b) redirect("/login");
   return (
     <main className="login">

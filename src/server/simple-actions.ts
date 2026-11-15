@@ -61,16 +61,16 @@ export async function saveSimpleAction(key: string, _: ActionState, fd: FormData
       const bad = E.check ? await E.check(tx, values, id) : null;
       if (bad) throw new RuleError(bad);
       if (id) {
-        const r = await tx.update(tbl).set(values as never).where(and(eq(tbl.id, id), eq(tbl.tenantId, s.tenant.id))).returning({ id: tbl.id });
+        const r = await tx.update(tbl).set(values as never).where(eq(tbl.id, id)).returning({ id: tbl.id });
         if (!r.length) throw new Error("not found");
       } else {
-        await tx.insert(tbl).values({ ...values, tenantId: s.tenant.id } as never);
+        await tx.insert(tbl).values({ ...values } as never);
       }
     });
   } catch (err) {
     return { error: ruleMsg(err), values: raw };
   }
-  await audit({ action: `${key}.${id ? "alterado" : "criado"}`, tenantId: s.tenant.id, userId: s.user.id, userEmail: s.user.email, entity: key, entityId: id || undefined });
+  await audit({ action: `${key}.${id ? "alterado" : "criado"}`, userId: s.user.id, userEmail: s.user.email, entity: key, entityId: id || undefined });
   return { ok: true, message: id ? "Alterações salvas." : `${E.fem ? "Nova" : "Novo"} ${E.one} cadastrad${E.fem ? "a" : "o"}.` };
 }
 
@@ -88,13 +88,13 @@ export async function deleteSimpleAction(key: string, id: string): Promise<Actio
         const [{ c }] = await tx.select({ c: sql<number>`count(*)::int` }).from(t).where(eq(col, id));
         if (c > 0) return m;
       }
-      const r = await tx.delete(tbl).where(and(eq(tbl.id, id), eq(tbl.tenantId, s.tenant.id))).returning({ id: tbl.id });
+      const r = await tx.delete(tbl).where(eq(tbl.id, id)).returning({ id: tbl.id });
       return r.length ? null : "Registro não encontrado.";
     });
     if (msg) return { error: msg };
   } catch (err) {
     return { error: ruleMsg(err, "Não foi possível excluir.") };
   }
-  await audit({ action: `${key}.excluido`, tenantId: s.tenant.id, userId: s.user.id, userEmail: s.user.email, entity: key, entityId: id });
+  await audit({ action: `${key}.excluido`, userId: s.user.id, userEmail: s.user.email, entity: key, entityId: id });
   return { ok: true, message: "Registro excluído." };
 }

@@ -5,15 +5,15 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1794754159804,
+      "when": 1794762595775,
       "tag": "0000_inicial",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1794754174011,
-      "tag": "0001_regras_e_isolamento",
+      "when": 1794762598547,
+      "tag": "0001_regras",
       "breakpoints": true
     }
   ]

@@ -1,1 +1,1 @@
-export { ExportReportsPage as default } from "@/views/tenant/finance";
+export { ExportReportsPage as default } from "@/views/app/finance";

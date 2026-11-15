@@ -2,9 +2,8 @@
  * Bee School — tabelas de negócio (financeiro, acadêmico e painéis).
  *
  * Padrões:
- *  - toda tabela tem tenant_id + Row Level Security com FORCE (migração 0001) e UNIQUE (tenant_id, id);
- *  - chaves estrangeiras entre tabelas de negócio são compostas (tenant_id, x_id): um registro nunca
- *    aponta para dados de outro cliente, mesmo que um id vaze;
+ *  - sistema de uma escola só: as tabelas não têm tenant_id (ver src/db/schema.ts);
+ *  - chaves estrangeiras explícitas, regras de valores em CHECKs e gatilhos (migração 0001);
  *  - datas de negócio são `date` em texto AAAA-MM-DD; dinheiro em numeric(14,2) (nunca float).
  *
  * Lógica financeira (a mesma das planilhas e dos painéis do cliente):
@@ -15,42 +14,36 @@
  *    Receita Líquida, Margem Bruta, Resultado Operacional e Resultado Final Gerencial pela seção do grupo.
  */
 import {
-  boolean, date, foreignKey, index, integer, jsonb, numeric, pgTable, primaryKey, text, timestamp, unique, uniqueIndex,
+  boolean, check, date, foreignKey, index, integer, jsonb, numeric, pgTable, text, timestamp, uniqueIndex,
   type AnyPgColumn, type PgColumn,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createId } from "../lib/ids";
-import { tenants } from "./schema";
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 const day = (name: string) => date(name, { mode: "string" });
 const money = (name: string) => numeric(name, { precision: 14, scale: 2 });
 
-/** Colunas comuns a toda tabela do cliente. */
+/** Colunas comuns a toda tabela de negócio. */
 const base = () => ({
   id: text("id").primaryKey().$defaultFn(createId),
-  tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
   createdAt: ts("created_at").notNull().defaultNow(),
   updatedAt: ts("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
-type Ref = { tenantId: AnyPgColumn; id: AnyPgColumn };
-/** Chave estrangeira composta (tenant_id, coluna) → (tenant_id, id). */
-function fk(name: string, tenant: PgColumn, col: PgColumn, ref: () => Ref, cascade = false) {
-  const r = ref();
-  const f = foreignKey({ name, columns: [tenant, col], foreignColumns: [r.tenantId, r.id] });
+/** Chave estrangeira simples coluna → id. `cascade` apaga junto; sem ele o banco impede apagar o registro usado. */
+function fk(name: string, col: PgColumn, ref: () => { id: AnyPgColumn }, cascade = false) {
+  const f = foreignKey({ name, columns: [col], foreignColumns: [ref().id] });
   return cascade ? f.onDelete("cascade") : f;
 }
-const tid = (name: string, t: { tenantId: PgColumn; id: PgColumn }) => unique(name).on(t.tenantId, t.id);
 
 // =====================================================================================
 // Administração
 // =====================================================================================
 export const sequences = pgTable("sequences", {
-  tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
-  key: text("key").notNull(),
+  key: text("key").primaryKey(),
   value: integer("value").notNull().default(0),
-}, (t) => [primaryKey({ name: "sequences_pk", columns: [t.tenantId, t.key] })]);
+});
 
 export const accessProfiles = pgTable("access_profiles", {
   ...base(),
@@ -58,11 +51,13 @@ export const accessProfiles = pgTable("access_profiles", {
   description: text("description"),
   /** { financeiro: "EDIT" | "VIEW" | "NONE", … } */
   permissions: jsonb("permissions").$type<Record<string, string>>().notNull().default({}),
-}, (t) => [tid("access_profiles_tid_uq", t), uniqueIndex("access_profiles_name_uq").on(t.tenantId, t.name)]);
+}, (t) => [uniqueIndex("access_profiles_name_uq").on(t.name)]);
 
-/** Dados da instituição e preferências. Uma linha por cliente. */
+/** Dados da instituição e preferências (linha única, id = 'main'), editados pela própria escola. */
 export const companySettings = pgTable("company_settings", {
-  ...base(),
+  id: text("id").primaryKey().default("main"),
+  createdAt: ts("created_at").notNull().defaultNow(),
+  updatedAt: ts("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),
   legalName: text("legal_name"),
   tradeName: text("trade_name"),
   document: text("document"),
@@ -76,7 +71,7 @@ export const companySettings = pgTable("company_settings", {
   /** base do "% sobre o faturamento" nos painéis: MENSALIDADE (grupos marcados como base) ou RECEITA_BRUTA */
   pctBase: text("pct_base").notNull().default("MENSALIDADE"),
   defaultsVersion: integer("defaults_version").notNull().default(0),
-}, (t) => [tid("company_settings_tid_uq", t), uniqueIndex("company_settings_tenant_uq").on(t.tenantId)]);
+}, (t) => [check("company_settings_single", sql`${t.id} = 'main'`)]);
 
 // =====================================================================================
 // Estrutura financeira
@@ -88,7 +83,7 @@ export const companies = pgTable("companies", {
   document: text("document"),
   color: text("color").notNull().default("#E9AE20"),
   active: boolean("active").notNull().default(true),
-}, (t) => [tid("companies_tid_uq", t), uniqueIndex("companies_name_uq").on(t.tenantId, t.name)]);
+}, (t) => [uniqueIndex("companies_name_uq").on(t.name)]);
 
 /** Contas: bancos (Sicredi 1, Cora, Inter…), caixa em dinheiro e aplicações. Cada uma é de uma empresa. */
 export const bankAccounts = pgTable("bank_accounts", {
@@ -102,8 +97,8 @@ export const bankAccounts = pgTable("bank_accounts", {
   initialBalance: money("initial_balance").notNull().default("0"),
   initialDate: day("initial_date"),
   active: boolean("active").notNull().default(true),
-}, (t) => [tid("bank_accounts_tid_uq", t), uniqueIndex("bank_accounts_name_uq").on(t.tenantId, t.name),
-  fk("bank_accounts_company_fk", t.tenantId, t.companyId, () => companies)]);
+}, (t) => [uniqueIndex("bank_accounts_name_uq").on(t.name),
+  fk("bank_accounts_company_fk", t.companyId, () => companies)]);
 
 /**
  * Grupos da DRE. A seção define onde o grupo entra no cálculo:
@@ -118,7 +113,7 @@ export const dreGroups = pgTable("dre_groups", {
   position: integer("position").notNull().default(0),
   isBase: boolean("is_base").notNull().default(false),
   active: boolean("active").notNull().default(true),
-}, (t) => [tid("dre_groups_tid_uq", t), uniqueIndex("dre_groups_name_uq").on(t.tenantId, t.name)]);
+}, (t) => [uniqueIndex("dre_groups_name_uq").on(t.name)]);
 
 /** Categorias dos lançamentos (Salários e ordenados, Matrícula, Energia elétrica…), ligadas a um grupo da DRE. */
 export const finCategories = pgTable("fin_categories", {
@@ -126,14 +121,14 @@ export const finCategories = pgTable("fin_categories", {
   name: text("name").notNull(),
   groupId: text("group_id").notNull(),
   active: boolean("active").notNull().default(true),
-}, (t) => [tid("fin_categories_tid_uq", t), uniqueIndex("fin_categories_name_uq").on(t.tenantId, t.name),
-  fk("fin_categories_group_fk", t.tenantId, t.groupId, () => dreGroups)]);
+}, (t) => [uniqueIndex("fin_categories_name_uq").on(t.name),
+  fk("fin_categories_group_fk", t.groupId, () => dreGroups)]);
 
 export const paymentMethods = pgTable("payment_methods", {
   ...base(),
   name: text("name").notNull(),
   active: boolean("active").notNull().default(true),
-}, (t) => [tid("payment_methods_tid_uq", t), uniqueIndex("payment_methods_name_uq").on(t.tenantId, t.name)]);
+}, (t) => [uniqueIndex("payment_methods_name_uq").on(t.name)]);
 
 /** Situações auxiliares dos lançamentos em aberto (ex.: Aguardando aprovação, Agendado). */
 export const finSituations = pgTable("fin_situations", {
@@ -141,7 +136,7 @@ export const finSituations = pgTable("fin_situations", {
   name: text("name").notNull(),
   color: text("color").notNull().default("#6B6B6B"),
   active: boolean("active").notNull().default(true),
-}, (t) => [tid("fin_situations_tid_uq", t)]);
+});
 
 /** Pessoas: responsáveis financeiros, fornecedores, funcionários e prestadores. */
 export const people = pgTable("people", {
@@ -153,7 +148,7 @@ export const people = pgTable("people", {
   phone: text("phone"),
   notes: text("notes"),
   active: boolean("active").notNull().default(true),
-}, (t) => [tid("people_tid_uq", t), index("people_name_idx").on(t.tenantId, t.name)]);
+}, (t) => [index("people_name_idx").on(t.name)]);
 
 // =====================================================================================
 // Acadêmico (primeiras seções, no lugar do Proesc)
@@ -167,8 +162,8 @@ export const classes = pgTable("classes", {
   year: integer("year").notNull(),
   capacity: integer("capacity"),
   active: boolean("active").notNull().default(true),
-}, (t) => [tid("classes_tid_uq", t), uniqueIndex("classes_name_uq").on(t.tenantId, t.year, t.name),
-  fk("classes_company_fk", t.tenantId, t.companyId, () => companies)]);
+}, (t) => [uniqueIndex("classes_name_uq").on(t.year, t.name),
+  fk("classes_company_fk", t.companyId, () => companies)]);
 
 export const students = pgTable("students", {
   ...base(),
@@ -184,10 +179,10 @@ export const students = pgTable("students", {
   dueDay: integer("due_day").notNull().default(10),
   externalCode: text("external_code"), // código no Proesc
   notes: text("notes"),
-}, (t) => [tid("students_tid_uq", t), index("students_name_idx").on(t.tenantId, t.name),
-  fk("students_company_fk", t.tenantId, t.companyId, () => companies),
-  fk("students_class_fk", t.tenantId, t.classId, () => classes),
-  fk("students_guardian_fk", t.tenantId, t.guardianId, () => people)]);
+}, (t) => [index("students_name_idx").on(t.name),
+  fk("students_company_fk", t.companyId, () => companies),
+  fk("students_class_fk", t.classId, () => classes),
+  fk("students_guardian_fk", t.guardianId, () => people)]);
 
 // =====================================================================================
 // Lançamentos
@@ -200,7 +195,7 @@ export const finImports = pgTable("fin_imports", {
   rows: integer("rows").notNull(),
   total: money("total").notNull().default("0"),
   userName: text("user_name"),
-}, (t) => [tid("fin_imports_tid_uq", t), fk("fin_imports_bank_fk", t.tenantId, t.bankAccountId, () => bankAccounts)]);
+}, (t) => [fk("fin_imports_bank_fk", t.bankAccountId, () => bankAccounts)]);
 
 /** Contas a receber e a pagar. Pago/recebido (status PAGO) = movimento realizado no extrato da conta. */
 export const finTitles = pgTable("fin_titles", {
@@ -231,19 +226,18 @@ export const finTitles = pgTable("fin_titles", {
   notes: text("notes"),
   userName: text("user_name"),
 }, (t) => [
-  tid("fin_titles_tid_uq", t),
-  index("fin_titles_due_idx").on(t.tenantId, t.kind, t.dueDate),
-  index("fin_titles_paid_idx").on(t.tenantId, t.status, t.paidAt),
-  index("fin_titles_origin_idx").on(t.tenantId, t.originType, t.originId),
+  index("fin_titles_due_idx").on(t.kind, t.dueDate),
+  index("fin_titles_paid_idx").on(t.status, t.paidAt),
+  index("fin_titles_origin_idx").on(t.originType, t.originId),
   // uma mensalidade por aluno e competência (canceladas não contam)
-  uniqueIndex("fin_titles_tuition_uq").on(t.tenantId, t.studentId, t.competence).where(sql`origin_type = 'MENSALIDADE' and status <> 'CANCELADO'`),
-  fk("fin_titles_company_fk", t.tenantId, t.companyId, () => companies),
-  fk("fin_titles_person_fk", t.tenantId, t.personId, () => people),
-  fk("fin_titles_student_fk", t.tenantId, t.studentId, () => students),
-  fk("fin_titles_cat_fk", t.tenantId, t.categoryId, () => finCategories),
-  fk("fin_titles_pm_fk", t.tenantId, t.paymentMethodId, () => paymentMethods),
-  fk("fin_titles_bank_fk", t.tenantId, t.bankAccountId, () => bankAccounts),
-  fk("fin_titles_sit_fk", t.tenantId, t.situationId, () => finSituations),
+  uniqueIndex("fin_titles_tuition_uq").on(t.studentId, t.competence).where(sql`origin_type = 'MENSALIDADE' and status <> 'CANCELADO'`),
+  fk("fin_titles_company_fk", t.companyId, () => companies),
+  fk("fin_titles_person_fk", t.personId, () => people),
+  fk("fin_titles_student_fk", t.studentId, () => students),
+  fk("fin_titles_cat_fk", t.categoryId, () => finCategories),
+  fk("fin_titles_pm_fk", t.paymentMethodId, () => paymentMethods),
+  fk("fin_titles_bank_fk", t.bankAccountId, () => bankAccounts),
+  fk("fin_titles_sit_fk", t.situationId, () => finSituations),
 ]);
 
 /** Lançamentos avulsos do extrato que não entram na DRE: transferências entre contas e ajustes de saldo. */
@@ -255,7 +249,7 @@ export const bankEntries = pgTable("bank_entries", {
   amount: money("amount").notNull(), // com sinal: + entrada, − saída
   transferId: text("transfer_id"),
   notes: text("notes"),
-}, (t) => [tid("bank_entries_tid_uq", t), fk("bank_entries_bank_fk", t.tenantId, t.bankAccountId, () => bankAccounts, true)]);
+}, (t) => [fk("bank_entries_bank_fk", t.bankAccountId, () => bankAccounts, true)]);
 
 // =====================================================================================
 // Painéis: indicadores (% sobre o faturamento) e metas do orçamento por empresa
@@ -269,7 +263,7 @@ export const indicators = pgTable("indicators", {
   categoryIds: text("category_ids").array().notNull().default([]),
   position: integer("position").notNull().default(0),
   active: boolean("active").notNull().default(true),
-}, (t) => [tid("indicators_tid_uq", t), fk("indicators_group_fk", t.tenantId, t.groupId, () => dreGroups)]);
+}, (t) => [fk("indicators_group_fk", t.groupId, () => dreGroups)]);
 
 /** Meta (teto) do indicador em % do faturamento, por empresa (orçamento Bee School, orçamento Bee Light). */
 export const indicatorTargets = pgTable("indicator_targets", {
@@ -277,16 +271,9 @@ export const indicatorTargets = pgTable("indicator_targets", {
   indicatorId: text("indicator_id").notNull(),
   companyId: text("company_id").notNull(),
   targetPct: numeric("target_pct", { precision: 7, scale: 2 }).notNull(),
-}, (t) => [tid("indicator_targets_tid_uq", t), uniqueIndex("indicator_targets_uq").on(t.tenantId, t.indicatorId, t.companyId),
-  fk("indicator_targets_ind_fk", t.tenantId, t.indicatorId, () => indicators, true),
-  fk("indicator_targets_company_fk", t.tenantId, t.companyId, () => companies, true)]);
-
-/** Tabelas de negócio com isolamento por cliente (usada na migração de RLS e nos testes). */
-export const TENANT_TABLES = [
-  "sequences", "access_profiles", "company_settings", "companies", "bank_accounts", "dre_groups", "fin_categories",
-  "payment_methods", "fin_situations", "people", "classes", "students", "fin_imports", "fin_titles", "bank_entries",
-  "indicators", "indicator_targets",
-] as const;
+}, (t) => [uniqueIndex("indicator_targets_uq").on(t.indicatorId, t.companyId),
+  fk("indicator_targets_ind_fk", t.indicatorId, () => indicators, true),
+  fk("indicator_targets_company_fk", t.companyId, () => companies, true)]);
 
 export type FinTitle = typeof finTitles.$inferSelect;
 export type DreGroup = typeof dreGroups.$inferSelect;

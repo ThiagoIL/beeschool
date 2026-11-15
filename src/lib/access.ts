@@ -1,17 +1,17 @@
 import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
-import { withTenant, type Tx } from "./db";
-import { requireTenantUser, tenantUserForAction, SESSION_EXPIRED } from "./context";
-import { loadAccess, type SessionCtx } from "./session-core";
+import { db, type Tx } from "./db";
+import { requireUser, userForAction, SESSION_EXPIRED, type UserCtx } from "./context";
+import { loadAccess } from "./session-core";
 import type { Access, ModuleKey } from "./modules";
-import type { Tenant } from "@/db/schema";
 
-type TenantCtx = SessionCtx & { tenant: Tenant };
+export const accessOf = cache(async (s: UserCtx): Promise<Access> => loadAccess(s.user, s.system));
 
-export const accessOf = cache(async (s: TenantCtx): Promise<Access> => loadAccess(s.user, s.tenant));
+/** Transação no banco (várias operações que precisam valer juntas). */
+const tx = <T,>(fn: (t: Tx) => Promise<T>) => db.transaction(fn);
 
-export type PageCtx = TenantCtx & {
+export type PageCtx = UserCtx & {
   access: Access;
   /** pode alterar o módulo da página */
   edit: boolean;
@@ -23,25 +23,25 @@ export type PageCtx = TenantCtx & {
  * esta verificação repete a regra (defesa em profundidade).
  */
 export async function page(mod: ModuleKey | null, opts: { edit?: boolean } = {}): Promise<PageCtx> {
-  const s = await requireTenantUser();
+  const s = await requireUser();
   const access = await accessOf(s);
   if (mod) {
     const l = access.mods[mod];
     if (l === "NONE" || (opts.edit && l !== "EDIT")) redirect(`/?erro=${encodeURIComponent("Seu perfil não tem acesso a essa área.")}`);
   }
-  return { ...s, access, edit: mod ? access.mods[mod] === "EDIT" : true, tx: (fn) => withTenant(s.tenant.id, fn) };
+  return { ...s, access, edit: mod ? access.mods[mod] === "EDIT" : true, tx };
 }
 
-export type ActCtx = TenantCtx & { access: Access; tx: PageCtx["tx"]; userName: string };
+export type ActCtx = UserCtx & { access: Access; tx: PageCtx["tx"]; userName: string };
 
 /** Para ações: exige EDIT no módulo. Devolve null quando não pode. */
 export async function act(mod: ModuleKey | ModuleKey[]): Promise<ActCtx | null> {
-  const s = await tenantUserForAction();
+  const s = await userForAction();
   if (!s) return null;
   const access = await accessOf(s);
   const mods = Array.isArray(mod) ? mod : [mod];
   if (!mods.some((m) => access.mods[m] === "EDIT")) return null;
-  return { ...s, access, tx: (fn) => withTenant(s.tenant.id, fn), userName: s.user.name };
+  return { ...s, access, tx, userName: s.user.name };
 }
 
 export const NO_ACCESS = { error: "Você não tem permissão para alterar esta área, ou a sua sessão expirou. Entre novamente se for o caso." } as const;

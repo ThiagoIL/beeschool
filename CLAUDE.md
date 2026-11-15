@@ -6,18 +6,23 @@ Mantenha este arquivo atualizado ao final de cada sessão (decisões e próximos
 Sistema de gestão escolar da Bee Christian School e da Be Light Christian School (cliente do João / Otimiza+
 Gestão). Começa pelo **financeiro** (a lógica das planilhas por banco + o Power BI "Visão Financeira") e traz
 as primeiras seções acadêmicas para substituir o Proesc aos poucos. Interface em português do Brasil.
-**Instalação única** (um deploy por cliente), mantendo a estrutura multi-tenant padrão dos sistemas do João
-(Clínica Bosque, Otimiza+ ERP). Base de código derivada do Otimiza+ ERP (`D:\CLAUDE\otimiza-erp`).
+**Sistema de uma escola só, sem multi-tenant** (decisão do João, nov/2026): um deploy, um banco. O console do
+fornecedor fica no mesmo domínio em `/sistema-admin`, com login e contas separados, como na Clínica Bosque.
+Base de código derivada do Otimiza+ ERP (`D:\CLAUDE\otimiza-erp`).
 
 ## Stack
 Next.js 15 (App Router + Server Actions) · React 19 · TypeScript · PostgreSQL 16 · Drizzle ORM · Zod · Vitest ·
 nodemailer · qrcode · CSS próprio (`src/app/globals.css`, paleta dourado #E9AE20 / preto / cinza, fundo creme).
 
 ## Regras de arquitetura (não quebrar)
-- Toda tabela de negócio: `tenant_id`, RLS com FORCE, `UNIQUE (tenant_id, id)`, FKs compostas. Acesso só por
-  `withTenant()` (páginas: `const s = await page("modulo")`, `s.tx(...)`; ações: `const s = await act("modulo")`).
-- Tabela nova: declarar em `src/db/erp.ts` + `TENANT_TABLES`, `npm run db:generate`, migração `--custom` com
-  GRANT + RLS (modelo `drizzle/0001_regras_e_isolamento.sql`). Nunca editar migração aplicada.
+- Sem `tenant_id`. Configuração do fornecedor (licença, bloqueio, módulos, plano) na linha única
+  `system_settings` (`getSystem()`); dados da instituição em `company_settings` (linha única).
+- Páginas: `const s = await page("modulo")`, `s.tx(...)` (transação); ações: `const s = await act("modulo")`.
+- Tabela nova: declarar em `src/db/erp.ts`, `npm run db:generate`; CHECKs/gatilhos numa migração `--custom`
+  (modelo `drizzle/0001_regras.sql`). Nunca editar migração aplicada.
+- Áreas: o middleware reescreve `PLATFORM_ADMIN_PATH` (padrão `/sistema-admin`) para `src/app/console/*` e grava
+  o header `x-bee-area`; `requestArea()` lê esse header. Links do console sempre com `consoleHref()`
+  (`src/lib/console-path.ts`). Contas `SUPER_ADMIN` = console; `ADMIN`/`USER` = escola; cookies separados.
 - Módulos, níveis (`NONE/VIEW/EDIT`), rotas e menu: `src/lib/modules.ts` (sem dependências de servidor; usado
   no middleware). Acesso: `computeAccess` (puro) + `loadAccess` em `src/lib/session-core.ts`.
 - `src/lib/session-core.ts`, `db.ts` e `env.ts` **não** importam `server-only` (o middleware usa).
@@ -35,10 +40,10 @@ nodemailer · qrcode · CSS próprio (`src/app/globals.css`, paleta dourado #E9A
 - Indicadores (`indicators`) + metas por empresa (`indicator_targets`).
 
 ## Onde fica cada coisa
-- Telas: `src/views/tenant/finance.tsx`, `panels.tsx`, `home.tsx`, `admin.tsx`; console `src/views/admin/*`.
+- Telas: `src/views/app/finance.tsx`, `panels.tsx`, `home.tsx`, `admin.tsx`; console `src/views/admin/*` (rotas em `src/app/console`).
 - Cadastros simples (empresas, contas, grupos, categorias, formas, situações, pessoas, alunos, turmas,
   responsáveis): `src/server/simple-registry.ts` + `SimplePage`/`SimpleCrud`.
-- Segurança: `src/lib/session*.ts`, `context.ts`, `access.ts`, `license.ts`, `totp.ts`, `mail.ts`, `middleware.ts`.
+- Segurança: `src/lib/session*.ts`, `context.ts`, `access.ts`, `license.ts`, `totp.ts`, `mail.ts`, `console-path.ts`, `middleware.ts`.
 - Exportações CSV: `src/server/exports.ts` (`/api/export/<tipo>`).
 
 ## Comandos
@@ -46,10 +51,11 @@ nodemailer · qrcode · CSS próprio (`src/app/globals.css`, paleta dourado #E9A
 use `DATABASE_POOL_MAX=1`) · `npm run db:migrate` · `npm run db:bootstrap` · `DEMO=1 npm run db:seed-demo`.
 
 ## Decisões (nov/2026)
-- Instalação única com a estrutura multi-tenant mantida; bootstrap cria master + cliente + 1º admin.
+- Sem multi-tenant; bootstrap cria a conta master do console (`PLATFORM_ADMIN_*`) e o 1º admin da escola (`ADMIN_*`).
+- Variáveis obrigatórias: só `DATABASE_URL` e `AUTH_SECRET` (cifra o 2FA; nunca trocar depois de em uso).
 - 2FA no console é opcional (pedido do João, nov/2026): cada admin ativa em Minha conta; quem ativou passa a
   digitar o código. Para obrigar de novo: `twoFactorRequired: true` em `src/lib/env.ts`.
-- Bloqueio automático: `paid_until` + `grace_days`; manual com `block_message`. Tela `/suspenso`.
+- Bloqueio automático: `paid_until` + `grace_days`; manual com `block_message` (em `system_settings`). Tela `/suspenso`.
 - Grupo de receitas padrão renomeado para "Outras receitas" (a linha calculada é "Receita Bruta").
 - Contas padrão criadas por suposição (Bee School: Inter, C6, Cora, Itaú, Sicredi 1/2, Nordeste, Caixa;
   Bee Light: Cora, Sicredi 1/2) e metas padrão só para a Bee Light (lidas do print do Power BI) — conferir com o cliente.

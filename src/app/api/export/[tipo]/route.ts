@@ -1,11 +1,10 @@
 import type { NextRequest } from "next/server";
-import { tenantSession } from "@/lib/context";
+import { appSession, getSystem } from "@/lib/context";
 import { accessOf } from "@/lib/access";
-import { withTenant } from "@/lib/db";
+import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { EXPORTS } from "@/server/exports";
 import { csvResponse } from "@/server/csv";
-import type { Tenant } from "@/db/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -14,12 +13,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tipo
   const { tipo } = await params;
   const ex = Object.prototype.hasOwnProperty.call(EXPORTS, tipo) ? EXPORTS[tipo] : null;
   if (!ex) return new Response("Relatório não encontrado.", { status: 404 });
-  const s = await tenantSession();
-  if (!s || !s.tenant) return new Response("Sessão expirada. Entre novamente.", { status: 401 });
-  const access = await accessOf({ ...s, tenant: s.tenant as Tenant });
+  const s = await appSession();
+  if (!s) return new Response("Sessão expirada. Entre novamente.", { status: 401 });
+  const access = await accessOf({ ...s, system: await getSystem() });
   if (access.mods[ex.mod] === "NONE") return new Response("Sem acesso.", { status: 403 });
   const sp = Object.fromEntries([...req.nextUrl.searchParams.entries()].map(([k, v]) => [k, v.slice(0, 200)]));
-  const { name, csv } = await withTenant(s.tenant.id, (tx) => ex.run(tx, sp));
-  await audit({ action: "exportacao.baixada", tenantId: s.tenant.id, userId: s.user.id, userEmail: s.user.email, entity: "relatorio", entityId: tipo });
+  const { name, csv } = await db.transaction((tx) => ex.run(tx, sp));
+  await audit({ action: "exportacao.baixada", userId: s.user.id, userEmail: s.user.email, entity: "relatorio", entityId: tipo });
   return csvResponse(name, csv);
 }

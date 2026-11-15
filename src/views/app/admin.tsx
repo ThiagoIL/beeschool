@@ -1,19 +1,19 @@
-import { asc, eq, sql } from "drizzle-orm";
-import { requireTenantUser } from "@/lib/context";
-import { db, withTenant } from "@/lib/db";
+import { asc, ne, sql } from "drizzle-orm";
+import { requireUser } from "@/lib/context";
+import { db } from "@/lib/db";
 import { users } from "@/db/schema";
 import * as E from "@/db/erp";
 import { PageHead } from "@/components/ui";
 import { ProfilesTable } from "@/components/AdminUI";
 import { Field, Form, Submit } from "@/components/Form";
 import { LogoUpload } from "@/components/LogoUpload";
-import { saveCompanyAction } from "@/server/admin-tenant-actions";
+import { saveCompanyAction } from "@/server/school-admin-actions";
 import { UFS } from "@/components/ui";
 
 export async function ProfilesPage() {
-  const s = await requireTenantUser({ admin: true });
-  const rows = await withTenant(s.tenant.id, (tx) => tx.select().from(E.accessProfiles).orderBy(asc(E.accessProfiles.name)));
-  const counts = await db.select({ p: users.profileId, n: sql<number>`count(*)::int` }).from(users).where(eq(users.tenantId, s.tenant.id)).groupBy(users.profileId);
+  const s = await requireUser({ admin: true });
+  const rows = await db.transaction((tx) => tx.select().from(E.accessProfiles).orderBy(asc(E.accessProfiles.name)));
+  const counts = await db.select({ p: users.profileId, n: sql<number>`count(*)::int` }).from(users).where(ne(users.role, "SUPER_ADMIN")).groupBy(users.profileId);
   return (
     <>
       <PageHead title="Perfis de acesso" sub="O que cada perfil pode consultar e alterar em cada módulo. Ligue o perfil ao usuário na tela do usuário." />
@@ -23,8 +23,8 @@ export async function ProfilesPage() {
 }
 
 export async function CompanyPage() {
-  const s = await requireTenantUser({ admin: true });
-  const [c] = await withTenant(s.tenant.id, (tx) => tx.select().from(E.companySettings).limit(1));
+  const s = await requireUser({ admin: true });
+  const [c] = await db.transaction((tx) => tx.select().from(E.companySettings).limit(1));
   return (
     <>
       <PageHead title="Instituição" sub="Dados gerais e preferências dos painéis. As empresas do grupo (Bee School, Bee Light) ficam em Financeiro › Configurações › Empresas." />
@@ -33,9 +33,9 @@ export async function CompanyPage() {
       </div></section>
       <Form action={saveCompanyAction} className="sheet">
         <section className="panel sec-panel"><h2>Dados</h2><div className="pb"><div className="form f4">
-          <Field name="razao" label="Razão social" defaultValue={c?.legalName ?? s.tenant.name} full />
+          <Field name="razao" label="Razão social" defaultValue={c?.legalName ?? s.system.name} full />
           <Field name="fantasia" label="Nome fantasia" defaultValue={c?.tradeName} />
-          <Field name="cnpj" label="CNPJ" defaultValue={c?.document ?? s.tenant.document} />
+          <Field name="cnpj" label="CNPJ" defaultValue={c?.document} />
           <Field name="telefone" label="Telefone" defaultValue={c?.phone} />
           <Field name="email" label="E-mail" defaultValue={c?.email} />
           <Field name="cidade" label="Cidade" defaultValue={c?.city} />

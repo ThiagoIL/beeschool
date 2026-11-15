@@ -18,7 +18,7 @@ export type SField = {
 export type SColFmt = "num" | "money" | "active" | "color" | "code" | "desc" | "opt" | "list";
 export type SCol = { k: string; label: string; f?: SColFmt };
 export type SEntity = {
-  mod: ModuleKey; table: PgTable & { id: PgColumn; tenantId: PgColumn }; title: string; sub: string; one: string; fem?: boolean;
+  mod: ModuleKey; table: PgTable & { id: PgColumn }; title: string; sub: string; one: string; fem?: boolean;
   fields: SField[]; cols: SCol[]; order: (t: never) => SQL | PgColumn | (SQL | PgColumn)[];
   counts?: { k: string; label: string; sql: SQL; f?: SColFmt }[];
   /** registros que impedem a exclusão (com histórico, desative em vez de excluir): [tabela, coluna, mensagem] */
@@ -29,7 +29,7 @@ export type SEntity = {
   guard?: (tx: Tx, id: string) => Promise<string | null>;
 };
 
-const t = <T extends PgTable & { id: PgColumn; tenantId: PgColumn }>(x: T) => x as T;
+const t = <T extends PgTable & { id: PgColumn }>(x: T) => x as T;
 const companiesOpt = async (tx: Tx): Promise<Opt[]> => (await tx.select({ id: E.companies.id, n: E.companies.name }).from(E.companies).orderBy(asc(E.companies.name))).map((r) => [r.id, r.n]);
 const groupsOpt = async (tx: Tx): Promise<Opt[]> => (await tx.select({ id: E.dreGroups.id, n: E.dreGroups.name }).from(E.dreGroups).orderBy(asc(E.dreGroups.position))).map((r) => [r.id, r.n]);
 const classesOpt = async (tx: Tx): Promise<Opt[]> => (await tx.select({ id: E.classes.id, n: E.classes.name, y: E.classes.year }).from(E.classes).orderBy(sql`${E.classes.year} desc`, asc(E.classes.name))).map((r) => [r.id, `${r.n} (${r.y})`]);

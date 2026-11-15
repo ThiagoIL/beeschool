@@ -10,7 +10,7 @@ import { addDays, fmtD, today } from "@/lib/dates";
 import { daysToBlock } from "@/lib/license";
 
 /** Início: atalhos e números do dia (o que vence, saldo, alunos), conforme o acesso de cada um. */
-export async function TenantHome({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+export async function AppHome({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const s = await page(null);
   const sp = await searchParams;
   const fin = s.access.mods.financeiro !== "NONE", acad = s.access.mods.academico !== "NONE";
@@ -29,10 +29,10 @@ export async function TenantHome({ searchParams }: { searchParams: Promise<Recor
     const al = acad ? (await tx.execute<{ n: number; t: number }>(sql`select (count(*) filter (where status = 'ATIVO'))::int n, (select count(*)::int from classes where active) t from students`)).rows[0] : null;
     return { k, saldo, next, al };
   });
-  const left = daysToBlock({ status: s.tenant.status, paidUntil: s.tenant.paidUntil, graceDays: s.tenant.graceDays }, hoje);
+  const left = daysToBlock({ status: s.system.status, paidUntil: s.system.paidUntil, graceDays: s.system.graceDays }, hoje);
   return (
     <>
-      <PageHead title={`Olá, ${s.user.name.split(" ")[0]}.`} sub={`${s.tenant.name} · ${fmtD(hoje)}`} />
+      <PageHead title={`Olá, ${s.user.name.split(" ")[0]}.`} sub={`${s.system.name} · ${fmtD(hoje)}`} />
       {sp.erro && <div className="alert warn">{sp.erro.slice(0, 200)}</div>}
       {s.access.isAdmin && left != null && left <= 10 && <div className="alert warn">A licença do sistema vence em breve: o acesso será bloqueado em {left} {left === 1 ? "dia" : "dias"} se não for renovada.</div>}
       {fin && d.k && (

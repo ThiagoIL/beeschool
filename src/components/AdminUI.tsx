@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Icon } from "./Icon";
 import { Modal, useRun } from "./client";
-import { deleteProfileAction, saveProfileAction, setUserProfileAction } from "@/server/admin-tenant-actions";
+import { deleteProfileAction, saveProfileAction, setUserProfileAction } from "@/server/school-admin-actions";
 import { LEVEL_LABEL, MODULES, type Level } from "@/lib/modules";
 
 export type Profile = { id?: string; name: string; description: string; permissions: Record<string, string>; users: number };

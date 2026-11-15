@@ -1,6 +1,6 @@
 /**
  * Testes de banco: aplica as migrações num PostgreSQL em memória (PGlite) e confere que as regras
- * críticas valem no próprio banco (RLS com FORCE, gatilhos e CHECKs), mesmo sem passar pelo código.
+ * críticas valem no próprio banco (gatilhos, CHECKs e chaves), mesmo sem passar pelo código.
  */
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -9,21 +9,6 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 let db: PGlite;
 const HASH = "$2b$12$opd9debQNUhrElkU44mKh.Ohe6/IWyv0jNqxU8ObcXDiY3Ib3REeq";
-
-/** Executa como a aplicação dentro de withTenant(): papel erp_app + app.tenant_id. */
-async function asTenant<T>(tenantId: string, fn: (q: (sql: string, p?: unknown[]) => Promise<{ rows: T[] }>) => Promise<unknown>) {
-  await db.exec("begin");
-  try {
-    await db.query("select set_config('app.tenant_id', $1, true)", [tenantId]);
-    await db.exec("set local role erp_app");
-    const r = await fn((sql, p) => db.query<T>(sql, p));
-    await db.exec("commit");
-    return r;
-  } catch (e) {
-    await db.exec("rollback");
-    throw e;
-  }
-}
 const rejects = async (p: Promise<unknown>, msg: RegExp) => { await expect(p).rejects.toThrow(msg); };
 
 beforeAll(async () => {
@@ -33,67 +18,56 @@ beforeAll(async () => {
     for (const stmt of readFileSync(path.join(dir, f), "utf8").split("--> statement-breakpoint")) if (stmt.trim()) await db.exec(stmt);
   }
   await db.exec(`
-    insert into tenants (id, slug, name) values ('tA', 'escola-a', 'Escola A'), ('tB', 'escola-b', 'Escola B');
-    insert into users (id, tenant_id, name, email, password_hash, role) values
-      ('m', null, 'Master', 'm@x.com', '${HASH}', 'SUPER_ADMIN'), ('a1', 'tA', 'Admin A', 'a@x.com', '${HASH}', 'TENANT_ADMIN');
+    insert into users (id, name, email, password_hash, role) values
+      ('m', 'Master', 'm@x.com', '${HASH}', 'SUPER_ADMIN'), ('a1', 'Admin', 'a@x.com', '${HASH}', 'ADMIN');
     update users set is_master = true where id = 'm';
+    insert into companies (id, name) values ('co', 'Bee School'), ('co_light', 'Bee Light');
+    insert into bank_accounts (id, company_id, name) values ('acc', 'co', 'Sicredi 1');
+    insert into dre_groups (id, name, section) values ('g', 'Despesas com Pessoal', 'OPERACIONAL');
+    insert into fin_categories (id, name, group_id) values ('cat', 'Salários', 'g');
   `);
-  for (const t of ["tA", "tB"]) {
-    await asTenant(t, async (q) => {
-      await q(`insert into companies (id, tenant_id, name) values ($1, $2, 'Bee School')`, [`co_${t}`, t]);
-      await q(`insert into bank_accounts (id, tenant_id, company_id, name) values ($1, $2, $3, 'Sicredi 1')`, [`acc_${t}`, t, `co_${t}`]);
-      await q(`insert into dre_groups (id, tenant_id, name, section) values ($1, $2, 'Despesas com Pessoal', 'OPERACIONAL')`, [`g_${t}`, t]);
-      await q(`insert into fin_categories (id, tenant_id, name, group_id) values ($1, $2, 'Salários', $3)`, [`cat_${t}`, t, `g_${t}`]);
-    });
-  }
 }, 60_000);
 afterAll(async () => { await db?.close(); });
 
-describe("isolamento por cliente (RLS com FORCE)", () => {
-  it("cada cliente só enxerga as próprias linhas", async () => {
-    const rows = (await asTenant<{ id: string }>("tA", (q) => q("select id from companies"))) as { rows: { id: string }[] };
-    expect(rows.rows.map((r) => r.id)).toEqual(["co_tA"]);
+describe("configuração do sistema (linha única)", () => {
+  it("a migração já cria a linha padrão", async () => {
+    const r = await db.query<{ id: string; status: string }>("select id, status from system_settings");
+    expect(r.rows).toEqual([{ id: "main", status: "ACTIVE" }]);
   });
-  it("não grava linha de outro cliente", async () => {
-    await rejects(asTenant("tA", (q) => q(`insert into companies (id, tenant_id, name) values ('x', 'tB', 'Invasora')`)), /row-level security/);
+  it("não aceita uma segunda linha", async () => {
+    await rejects(db.query(`insert into system_settings (id) values ('outra')`), /system_settings_single/);
   });
-  it("sem cliente informado, não enxerga nada", async () => {
-    await db.exec("begin; set local role erp_app;");
-    const r = await db.query("select * from fin_categories");
-    await db.exec("rollback");
-    expect(r.rows).toHaveLength(0);
-  });
-  it("FK composta impede apontar para cadastro de outro cliente", async () => {
-    await rejects(asTenant("tA", (q) => q(`insert into bank_accounts (id, tenant_id, company_id, name) values ('acc_x', 'tA', 'co_tB', 'Conta X')`)), /foreign key/);
+  it("módulos só do catálogo", async () => {
+    await rejects(db.query(`update system_settings set modules = '{financeiro,estoque}'`), /system_settings_modules_ck/);
   });
 });
 
 describe("regras do financeiro no banco", () => {
+  it("chave estrangeira impede apontar para cadastro inexistente", async () => {
+    await rejects(db.query(`insert into bank_accounts (id, company_id, name) values ('acc_x', 'nao_existe', 'Conta X')`), /foreign key/);
+  });
   it("baixa exige data, valor e conta", async () => {
-    await rejects(asTenant("tA", (q) => q(`insert into fin_titles (id, tenant_id, kind, company_id, description, due_date, amount, status) values ('t1', 'tA', 'PAGAR', 'co_tA', 'x', '2026-11-01', 10, 'PAGO')`)), /fin_titles_paid_ck/);
+    await rejects(db.query(`insert into fin_titles (id, kind, company_id, description, due_date, amount, status) values ('t1', 'PAGAR', 'co', 'x', '2026-11-01', 10, 'PAGO')`), /fin_titles_paid_ck/);
   });
   it("valor precisa ser positivo", async () => {
-    await rejects(asTenant("tA", (q) => q(`insert into fin_titles (id, tenant_id, kind, company_id, description, due_date, amount) values ('t2', 'tA', 'PAGAR', 'co_tA', 'x', '2026-11-01', 0)`)), /fin_titles_amount_ck/);
+    await rejects(db.query(`insert into fin_titles (id, kind, company_id, description, due_date, amount) values ('t2', 'PAGAR', 'co', 'x', '2026-11-01', 0)`), /fin_titles_amount_ck/);
   });
   it("conta de outra empresa do grupo é recusada", async () => {
-    await asTenant("tA", (q) => q(`insert into companies (id, tenant_id, name) values ('co_light', 'tA', 'Bee Light')`));
-    await rejects(asTenant("tA", (q) => q(`insert into fin_titles (id, tenant_id, kind, company_id, description, due_date, amount, status, paid_at, paid_amount, bank_account_id)
-      values ('t3', 'tA', 'PAGAR', 'co_light', 'x', '2026-11-01', 10, 'PAGO', '2026-11-01', 10, 'acc_tA')`)), /outra empresa do grupo/);
+    await rejects(db.query(`insert into fin_titles (id, kind, company_id, description, due_date, amount, status, paid_at, paid_amount, bank_account_id)
+      values ('t3', 'PAGAR', 'co_light', 'x', '2026-11-01', 10, 'PAGO', '2026-11-01', 10, 'acc')`), /outra empresa do grupo/);
   });
   it("lançamento baixado não se exclui (estorne antes)", async () => {
-    await asTenant("tA", (q) => q(`insert into fin_titles (id, tenant_id, kind, company_id, description, due_date, amount, status, paid_at, paid_amount, bank_account_id, category_id)
-      values ('t4', 'tA', 'PAGAR', 'co_tA', 'Salário', '2026-11-05', 1000, 'PAGO', '2026-11-05', 1000, 'acc_tA', 'cat_tA')`));
-    await rejects(asTenant("tA", (q) => q(`delete from fin_titles where id = 't4'`)), /estorne a baixa/);
+    await db.query(`insert into fin_titles (id, kind, company_id, description, due_date, amount, status, paid_at, paid_amount, bank_account_id, category_id)
+      values ('t4', 'PAGAR', 'co', 'Salário', '2026-11-05', 1000, 'PAGO', '2026-11-05', 1000, 'acc', 'cat')`);
+    await rejects(db.query(`delete from fin_titles where id = 't4'`), /estorne a baixa/);
   });
   it("uma mensalidade por aluno e competência", async () => {
-    await asTenant("tA", async (q) => {
-      await q(`insert into students (id, tenant_id, company_id, name, monthly_fee) values ('s1', 'tA', 'co_tA', 'Enzo', 900)`);
-      await q(`insert into fin_titles (id, tenant_id, kind, company_id, description, due_date, amount, student_id, competence, origin_type) values ('m1', 'tA', 'RECEBER', 'co_tA', 'Mens.', '2026-12-10', 900, 's1', '2026-12', 'MENSALIDADE')`);
-    });
-    await rejects(asTenant("tA", (q) => q(`insert into fin_titles (id, tenant_id, kind, company_id, description, due_date, amount, student_id, competence, origin_type) values ('m2', 'tA', 'RECEBER', 'co_tA', 'Mens.', '2026-12-10', 900, 's1', '2026-12', 'MENSALIDADE')`)), /fin_titles_tuition_uq/);
+    await db.query(`insert into students (id, company_id, name, monthly_fee) values ('s1', 'co', 'Enzo', 900)`);
+    await db.query(`insert into fin_titles (id, kind, company_id, description, due_date, amount, student_id, competence, origin_type) values ('m1', 'RECEBER', 'co', 'Mens.', '2026-12-10', 900, 's1', '2026-12', 'MENSALIDADE')`);
+    await rejects(db.query(`insert into fin_titles (id, kind, company_id, description, due_date, amount, student_id, competence, origin_type) values ('m2', 'RECEBER', 'co', 'Mens.', '2026-12-10', 900, 's1', '2026-12', 'MENSALIDADE')`), /fin_titles_tuition_uq/);
   });
   it("desconto não passa da mensalidade", async () => {
-    await rejects(asTenant("tA", (q) => q(`insert into students (id, tenant_id, company_id, name, monthly_fee, discount) values ('s2', 'tA', 'co_tA', 'Ana', 100, 150)`)), /students_fee_ck/);
+    await rejects(db.query(`insert into students (id, company_id, name, monthly_fee, discount) values ('s2', 'co', 'Ana', 100, 150)`), /students_fee_ck/);
   });
 });
 
@@ -102,20 +76,27 @@ describe("regras de usuários no banco", () => {
     await rejects(db.query(`update users set status = 'INACTIVE' where id = 'm'`), /master/);
     await rejects(db.query(`delete from users where id = 'm'`), /master/);
   });
-  it("sempre sobra um administrador ativo no cliente", async () => {
-    await rejects(db.query(`update users set role = 'TENANT_USER' where id = 'a1'`), /ao menos um administrador/);
+  it("sempre sobra um administrador ativo na escola", async () => {
+    await rejects(db.query(`update users set role = 'USER' where id = 'a1'`), /ao menos um administrador/);
   });
-  it("usuário não muda de cliente", async () => {
-    await db.query(`insert into users (id, tenant_id, name, email, password_hash, role) values ('u1', 'tA', 'U', 'u@x.com', '${HASH}', 'TENANT_USER')`);
-    await rejects(db.query(`update users set tenant_id = 'tB' where id = 'u1'`), /mudar de empresa/);
+  it("conta do console e conta da escola são separadas", async () => {
+    await db.query(`insert into users (id, name, email, password_hash, role) values ('u1', 'U', 'u@x.com', '${HASH}', 'USER')`);
+    await rejects(db.query(`update users set role = 'SUPER_ADMIN' where id = 'u1'`), /conta do console/);
+    // o mesmo e-mail pode existir no console e na escola, mas não duas vezes na mesma área
+    await db.query(`insert into users (id, name, email, password_hash, role) values ('c2', 'U console', 'u@x.com', '${HASH}', 'SUPER_ADMIN')`);
+    await rejects(db.query(`insert into users (id, name, email, password_hash, role) values ('u2', 'U2', 'u@x.com', '${HASH}', 'ADMIN')`), /users_app_email_uq/);
   });
   it("senha nunca fica sem hash bcrypt", async () => {
     await rejects(db.query(`update users set password_hash = '' where id = 'u1'`), /users_password_hash_ck/);
   });
-  it("2FA só para administradores do sistema", async () => {
+  it("2FA só para administradores do console", async () => {
     await rejects(db.query(`update users set totp_secret = 'x', totp_enabled_at = now() where id = 'u1'`), /users_totp_scope_ck/);
   });
-  it("módulos do cliente só do catálogo", async () => {
-    await rejects(db.query(`update tenants set modules = '{financeiro,estoque}' where id = 'tA'`), /tenants_modules_ck/);
+  it("perfil excluído deixa o usuário sem perfil", async () => {
+    await db.query(`insert into access_profiles (id, name) values ('p1', 'Secretaria')`);
+    await db.query(`update users set profile_id = 'p1' where id = 'u1'`);
+    await db.query(`delete from access_profiles where id = 'p1'`);
+    const r = await db.query<{ profile_id: string | null }>(`select profile_id from users where id = 'u1'`);
+    expect(r.rows[0].profile_id).toBeNull();
   });
 });

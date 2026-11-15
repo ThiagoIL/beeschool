@@ -1,16 +1,16 @@
 import type { User } from "@/db/schema";
 import { Field, Form, Hidden, Submit } from "./Form";
-import { ROLE_LABEL, assignableTenantRoles, canChangeRole, canChangeStatus, canDelete, canResetPassword, type Actor, type Target } from "@/lib/rules";
+import { ROLE_LABEL, assignableSchoolRoles, canChangeRole, canChangeStatus, canDelete, canResetPassword, type Actor, type Target } from "@/lib/rules";
 import { deleteUserAction, resetPasswordAction, unlockUserAction, updateUserAction } from "@/server/user-actions";
 import { fmtDateTime } from "@/lib/format";
 
 /** Edição de um usuário. Campos que o ator não pode mudar aparecem travados (e o servidor confere de novo). */
 export function UserEditor({ user, actor, back }: { user: User; actor: Actor; back: string }) {
-  const t: Target = { id: user.id, role: user.role, tenantId: user.tenantId, isMaster: user.isMaster, status: user.status };
+  const t: Target = { id: user.id, role: user.role, isMaster: user.isMaster, status: user.status };
   const self = actor.id === user.id;
-  const roleLocked = user.role === "SUPER_ADMIN" || !canChangeRole(actor, t, user.role === "TENANT_ADMIN" ? "TENANT_USER" : "TENANT_ADMIN").ok;
+  const roleLocked = user.role === "SUPER_ADMIN" || !canChangeRole(actor, t, user.role === "ADMIN" ? "USER" : "ADMIN").ok;
   const statusLocked = !canChangeStatus(actor, t, "INACTIVE").ok;
-  const roleOpts = assignableTenantRoles(actor).map((r) => [r, ROLE_LABEL[r]] as const);
+  const roleOpts = assignableSchoolRoles(actor).map((r) => [r, ROLE_LABEL[r]] as const);
   const reset = canResetPassword(actor, t);
   const del = canDelete(actor, t);
   const locked = !!user.lockedUntil && user.lockedUntil.getTime() > Date.now();

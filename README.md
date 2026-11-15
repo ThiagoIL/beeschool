@@ -86,7 +86,7 @@ mensalidade por aluno e competência, lançamento baixado não se exclui.
 - **Login**: bcrypt custo 12, hash fictício para usuário inexistente, mensagem genérica, limite por IP e por
   conta guardado no banco, bloqueio de 15 min após 5 erros, senha 10+ com maiúscula/minúscula/número,
   senha provisória com troca obrigatória.
-- **2FA obrigatório no console** (TOTP, compatível com Google/Microsoft Authenticator); segredo cifrado com
+- **2FA opcional no console** (cada administrador ativa em Minha conta) (TOTP, compatível com Google/Microsoft Authenticator); segredo cifrado com
   AES-256-GCM (`APP_SECRET`); código não pode ser reutilizado.
 - **Sessão**: token aleatório de 256 bits, só o SHA-256 no banco, 12 h de duração e 120 min de inatividade,
   cookie `__Host-` HttpOnly/Secure/SameSite=Lax, presa à área e ao cliente; revogada ao trocar senha,
@@ -168,7 +168,7 @@ npm test
 4. **Domínios** (porta 3000, HTTPS): `admin.beeschool.com.br`, `<slug>.beeschool.com.br` (ex.:
    `beeschool.beeschool.com.br` ou um slug curto como `escola`). No DNS, crie os registros A/CNAME.
 5. **Deploy**. Nos logs: migrações aplicadas, conta master e cliente criados.
-6. Entre em `admin.`: configure o **2FA**, confira o cliente (licença, módulos). Entre na escola com o
+6. Entre em `admin.`: (opcional) ative o **2FA** em Minha conta, confira o cliente (licença, módulos). Entre na escola com o
    administrador do cliente e troque a senha provisória.
 7. **Apague as senhas `INITIAL_*`** das variáveis e faça novo deploy.
 8. Health check: `/api/health` (200 com o banco ok, 503 sem banco).

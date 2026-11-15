@@ -30,5 +30,7 @@ if (!parsed.success) {
 export const env = {
   ...parsed.data,
   isProd: process.env.NODE_ENV === "production",
+  /** 2FA no console: opcional (ativado por cada administrador em Minha conta). Mude para true para obrigar. */
+  twoFactorRequired: false,
   cookieSecure: parsed.data.COOKIE_SECURE ? parsed.data.COOKIE_SECURE === "true" : process.env.NODE_ENV === "production",
 };

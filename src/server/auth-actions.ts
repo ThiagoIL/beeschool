@@ -5,7 +5,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { passwordResets, users, type User } from "@/db/schema";
-import { requestArea, adminSession, tenantSession, findTenant } from "@/lib/context";
+import { requestArea, adminSession, tenantSession, findTenant, needsTwoFactorSetup } from "@/lib/context";
 import { createSession, destroySession, readSession, revokeOtherSessions, revokeOwnSession, revokeUserSessions } from "@/lib/session";
 import { sha256, tenantBlocked } from "@/lib/session-core";
 import { hashPassword, passwordProblem, verifyPassword } from "@/lib/password";
@@ -69,6 +69,7 @@ export async function loginAction(_: ActionState, fd: FormData): Promise<ActionS
 
   // 2FA do console: com autenticador ativo, o código é obrigatório
   let step: number | null = null;
+  // 2FA ativado pelo administrador: exige o código
   if (info.area === "admin" && user.totpEnabledAt && user.totpSecret) {
     const secret = openSecret(user.totpSecret, env.APP_SECRET);
     step = secret ? verifyTotp(secret, codigo ?? "", user.totpLastStep) : null;
@@ -86,7 +87,7 @@ export async function loginAction(_: ActionState, fd: FormData): Promise<ActionS
   await db.update(users).set({ failedLogins: 0, lockedUntil: null, lastLoginAt: sql`now()`, ...(step != null ? { totpLastStep: step } : {}) }).where(eq(users.id, user.id));
   await createSession(user, info.area === "admin" ? "ADMIN" : "TENANT");
   await audit({ action: "login.entrou", tenantId, userId: user.id, userEmail: user.email });
-  return { ok: true, redirectTo: user.mustChangePassword ? "/conta?trocar=1" : info.area === "admin" && !user.totpEnabledAt ? "/conta?2fa=1" : "/" };
+  return { ok: true, redirectTo: user.mustChangePassword ? "/conta?trocar=1" : info.area === "admin" && needsTwoFactorSetup(user) ? "/conta?2fa=1" : "/" };
 }
 
 export async function logoutAction(): Promise<void> {
@@ -124,7 +125,7 @@ export async function changePasswordAction(_: ActionState, fd: FormData): Promis
   await revokeUserSessions(s.user.id);
   await createSession(updated, info.area === "admin" ? "ADMIN" : "TENANT");
   await audit({ action: "senha.alterada", tenantId: s.user.tenantId, userId: s.user.id, userEmail: s.user.email });
-  if (s.user.mustChangePassword) return { ok: true, message: "Senha alterada.", redirectTo: info.area === "admin" && !s.user.totpEnabledAt ? "/conta?2fa=1" : "/" };
+  if (s.user.mustChangePassword) return { ok: true, message: "Senha alterada.", redirectTo: info.area === "admin" && needsTwoFactorSetup(s.user) ? "/conta?2fa=1" : "/" };
   return { ok: true, message: "Senha alterada. As outras sessões abertas com a sua conta foram encerradas." };
 }
 
@@ -229,7 +230,9 @@ export async function disableTwoFactorAction(_: ActionState, fd: FormData): Prom
   if (!secret || verifyTotp(secret, String(fd.get("codigo") ?? ""), s.user.totpLastStep) == null) return { fields: { codigo: "Código incorreto." }, error: "Confira os campos." };
   await db.update(users).set({ totpEnabledAt: null, totpSecret: null, totpLastStep: null }).where(eq(users.id, s.user.id));
   await audit({ action: "2fa.desativado", userId: s.user.id, userEmail: s.user.email });
-  return { ok: true, message: "Autenticador desativado. Configure de novo para voltar a usar o console.", redirectTo: "/conta?2fa=1" };
+  return env.twoFactorRequired
+    ? { ok: true, message: "Autenticador desativado. Configure de novo para voltar a usar o console.", redirectTo: "/conta?2fa=1" }
+    : { ok: true, message: "Autenticador desativado. O console volta a pedir só e-mail e senha.", redirectTo: "/conta" };
 }
 
 // ------------------------------------------------------------------------------------

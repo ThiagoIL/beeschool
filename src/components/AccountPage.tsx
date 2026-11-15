@@ -48,13 +48,13 @@ export function AccountPage({ user, mustChange, roleLabel, sessions, twoFactor }
                     <Form action={disableTwoFactorAction}>
                       <Field name="senha" label="Senha atual" type="password" autoComplete="current-password" required />
                       <Field name="codigo" label="Código atual do aplicativo" autoComplete="one-time-code" required maxLength={6} />
-                      <div className="full form-foot"><Submit variant="danger" confirm="Desativar o autenticador? Você vai precisar configurar de novo para usar o console.">Desativar</Submit></div>
+                      <div className="full form-foot"><Submit variant="danger" confirm={twoFactor.required ? "Desativar o autenticador? Você vai precisar configurar de novo para usar o console." : "Desativar o autenticador? O console volta a pedir só e-mail e senha."}>Desativar</Submit></div>
                     </Form>
                   </details>
                 </>
               ) : (
                 <>
-                  <p style={{ marginTop: 0 }}>Use um aplicativo autenticador (Google Authenticator, Microsoft Authenticator, Authy…) no celular.</p>
+                  <p style={{ marginTop: 0 }}>{twoFactor.required ? "" : "Opcional, mas recomendado: protege o console mesmo se a senha vazar. "}Use um aplicativo autenticador (Google Authenticator, Microsoft Authenticator, Authy…) no celular.</p>
                   <TwoFactorStart account={user.email} />
                   <Form action={confirmTwoFactorAction}>
                     <Field name="codigo" label="Código de 6 dígitos mostrado no aplicativo" autoComplete="one-time-code" required maxLength={6} full />

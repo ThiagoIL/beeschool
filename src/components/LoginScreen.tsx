@@ -14,7 +14,7 @@ export function LoginScreen({ title, subtitle, tag, admin }: { title: string; su
           <Form action={loginAction} className="stack">
             <Field name="email" label="E-mail" type="email" autoComplete="username" required />
             <Field name="senha" label="Senha" type="password" autoComplete="current-password" required />
-            {admin && <Field name="codigo" label="Código do autenticador" autoComplete="one-time-code" maxLength={6} hint="6 dígitos do aplicativo. No primeiro acesso, deixe em branco." />}
+            {admin && <Field name="codigo" label="Código do autenticador" autoComplete="one-time-code" maxLength={6} hint="Só se você ativou a autenticação em dois fatores em Minha conta. Caso contrário, deixe em branco." />}
             <Submit block pending="Entrando…">Entrar</Submit>
           </Form>
           <p className="login-row"><Link href="/esqueci-senha">Esqueci minha senha</Link></p>

@@ -47,7 +47,8 @@ use `DATABASE_POOL_MAX=1`) · `npm run db:migrate` · `npm run db:bootstrap` · 
 
 ## Decisões (nov/2026)
 - Instalação única com a estrutura multi-tenant mantida; bootstrap cria master + cliente + 1º admin.
-- 2FA obrigatório no console; sem 2FA ativo o admin só vê Minha conta.
+- 2FA no console é opcional (pedido do João, nov/2026): cada admin ativa em Minha conta; quem ativou passa a
+  digitar o código. Para obrigar de novo: `twoFactorRequired: true` em `src/lib/env.ts`.
 - Bloqueio automático: `paid_until` + `grace_days`; manual com `block_message`. Tela `/suspenso`.
 - Grupo de receitas padrão renomeado para "Outras receitas" (a linha calculada é "Receita Bruta").
 - Contas padrão criadas por suposição (Bee School: Inter, C6, Cora, Itaú, Sicredi 1/2, Nordeste, Caixa;

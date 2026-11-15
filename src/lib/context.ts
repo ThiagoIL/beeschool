@@ -46,9 +46,14 @@ export function toActor(s: SessionCtx): Actor {
   return { id: s.user.id, role: s.user.role, tenantId: s.user.tenantId };
 }
 
+/** Administrador ainda precisa configurar o 2FA (só quando ADMIN_REQUIRE_2FA=true). */
+export function needsTwoFactorSetup(user: { totpEnabledAt: Date | null }): boolean {
+  return env.twoFactorRequired && !user.totpEnabledAt;
+}
+
 /**
- * Exige administrador do sistema logado. Sem 2FA ativo, só a página "Minha conta" abre
- * (para configurar o autenticador). Fora do console: 404.
+ * Exige administrador do sistema logado. Com 2FA obrigatório e ainda não ativo, só a página
+ * "Minha conta" abre (para configurar o autenticador). Fora do console: 404.
  */
 export async function requireAdmin(opts: { allowSetup?: boolean } = {}): Promise<SessionCtx> {
   if ((await requestArea()).area !== "admin") notFound();
@@ -56,7 +61,7 @@ export async function requireAdmin(opts: { allowSetup?: boolean } = {}): Promise
   if (!s) redirect("/login");
   if (!opts.allowSetup) {
     if (s.user.mustChangePassword) redirect("/conta?trocar=1");
-    if (!s.user.totpEnabledAt) redirect("/conta?2fa=1");
+    if (needsTwoFactorSetup(s.user)) redirect("/conta?2fa=1");
   }
   return s;
 }
@@ -79,7 +84,7 @@ export async function requireTenantUser(opts: { admin?: boolean; allowPasswordCh
 export async function adminForAction(): Promise<SessionCtx | null> {
   if ((await requestArea()).area !== "admin") return null;
   const s = await adminSession();
-  return s && !s.user.mustChangePassword && s.user.totpEnabledAt ? s : null;
+  return s && !s.user.mustChangePassword && !needsTwoFactorSetup(s.user) ? s : null;
 }
 
 export async function tenantUserForAction(opts: { admin?: boolean } = {}): Promise<(SessionCtx & { tenant: Tenant }) | null> {

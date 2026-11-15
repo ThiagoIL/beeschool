@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { Shell } from "@/components/Shell";
-import { adminSession, currentTenant, requestArea, tenantSession } from "@/lib/context";
+import { adminSession, currentTenant, needsTwoFactorSetup, requestArea, tenantSession } from "@/lib/context";
 import { accessOf } from "@/lib/access";
 import { ADMIN_NAV, TENANT_NAV } from "@/lib/modules";
 import { ensureDefaults, logoUrl } from "@/server/common";
@@ -16,8 +16,8 @@ export default async function SistemaLayout({ children }: { children: React.Reac
   if (info.area === "admin") {
     const s = await adminSession();
     if (!s) redirect("/login");
-    // sem 2FA configurado, o console mostra só "Minha conta" (sem menu)
-    const nav = s.user.totpEnabledAt && !s.user.mustChangePassword ? ADMIN_NAV : [];
+    // com 2FA obrigatório e não configurado, o console mostra só "Minha conta" (sem menu)
+    const nav = !needsTwoFactorSetup(s.user) && !s.user.mustChangePassword ? ADMIN_NAV : [];
     return <Shell nav={nav} user={s.user} roleLabel={s.user.isMaster ? "Administrador do sistema · master" : "Administrador do sistema"}>{children}</Shell>;
   }
 

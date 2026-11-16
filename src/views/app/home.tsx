@@ -3,17 +3,16 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { page } from "@/lib/access";
 import * as E from "@/db/erp";
 import { Kpi, PageHead, Panel } from "@/components/ui";
-import { Icon } from "@/components/Icon";
 import { accountBalances } from "@/server/finance-queries";
 import { fmtMoney } from "@/lib/format";
 import { addDays, fmtD, today } from "@/lib/dates";
 import { daysToBlock } from "@/lib/license";
 
-/** Início: atalhos e números do dia (o que vence, saldo, alunos), conforme o acesso de cada um. */
+/** Início: números do dia (o que vence e o saldo), conforme o acesso de cada um. */
 export async function AppHome({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const s = await page(null);
   const sp = await searchParams;
-  const fin = s.access.mods.financeiro !== "NONE", acad = s.access.mods.academico !== "NONE";
+  const fin = s.access.mods.financeiro !== "NONE";
   const hoje = today();
   const d = await s.tx(async (tx) => {
     const k = fin ? (await tx.execute<{ rv: string; rh: string; pv: string; ph: string; p7: string }>(sql`
@@ -26,8 +25,7 @@ export async function AppHome({ searchParams }: { searchParams: Promise<Record<s
     const saldo = fin ? (await accountBalances(tx)).filter((a) => a.active).reduce((x, a) => x + a.balance, 0) : 0;
     const next = fin ? await tx.select({ t: E.finTitles, al: E.students.name, p: E.people.name }).from(E.finTitles).leftJoin(E.students, eq(E.students.id, E.finTitles.studentId)).leftJoin(E.people, eq(E.people.id, E.finTitles.personId))
       .where(and(eq(E.finTitles.status, "ABERTO"), sql`${E.finTitles.dueDate} <= ${addDays(hoje, 7)}`)).orderBy(asc(E.finTitles.dueDate)).limit(10) : [];
-    const al = acad ? (await tx.execute<{ n: number; t: number }>(sql`select (count(*) filter (where status = 'ATIVO'))::int n, (select count(*)::int from classes where active) t from students`)).rows[0] : null;
-    return { k, saldo, next, al };
+    return { k, saldo, next };
   });
   const left = daysToBlock({ status: s.system.status, paidUntil: s.system.paidUntil, graceDays: s.system.graceDays }, hoje);
   return (
@@ -53,12 +51,6 @@ export async function AppHome({ searchParams }: { searchParams: Promise<Record<s
               : <div className="empty">Nada vencendo nos próximos dias.</div>}</div>
           </Panel>
         )}
-        <Panel title="Atalhos"><div className="pb shortcuts">
-          {fin && <><Link href="/financeiro/extrato"><Icon name="bank" />Extrato por banco</Link><Link href="/financeiro/mensalidades"><Icon name="calendar" />Mensalidades</Link><Link href="/financeiro/importar"><Icon name="upload" />Importar planilha</Link></>}
-          {s.access.mods.paineis !== "NONE" && <><Link href="/paineis"><Icon name="chart" />Análise DRE</Link><Link href="/paineis/indicadores"><Icon name="target" />Indicadores</Link></>}
-          {acad && <Link href="/academico/alunos"><Icon name="school" />Alunos {d.al ? `(${d.al.n} ativos)` : ""}</Link>}
-          <Link href="/conta"><Icon name="key" />Minha conta</Link>
-        </div></Panel>
       </div>
     </>
   );

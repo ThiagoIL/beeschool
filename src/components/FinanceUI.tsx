@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { PickField, Sel } from "./SearchPicker";
 import { Icon } from "./Icon";
@@ -9,8 +9,8 @@ import { searchPeopleAction, searchStudentsAction } from "@/server/search-action
 import { fmtD, today, addDays } from "@/lib/dates";
 
 type Opt = [string, string];
-/** Opções dos formulários. Contas trazem a empresa; categorias trazem o grupo da DRE. */
-export type FinOpts = { companies: Opt[]; accounts: [string, string, string][]; categories: [string, string, string][]; methods: Opt[]; situations: Opt[] };
+/** Opções dos formulários. Contas trazem a empresa; categorias trazem o grupo da DRE e o tipo (RECEBER/PAGAR). */
+export type FinOpts = { companies: Opt[]; accounts: [string, string, string][]; categories: [string, string, string, string][]; methods: Opt[]; situations: Opt[] };
 export type Title = {
   id?: string; kind: "RECEBER" | "PAGAR"; companyId: string; description: string; document: string; personId: string; personName?: string; studentId: string; studentName?: string;
   categoryId: string; issueDate: string; dueDate: string; amount: number; paymentMethodId: string; situationId: string; invoice: "" | "COM" | "SEM"; notes: string;
@@ -18,14 +18,15 @@ export type Title = {
 };
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-/** Categorias agrupadas pelo grupo da DRE (como no plano de contas). */
-function CategoryOptions({ cats }: { cats: FinOpts["categories"] }) {
-  const groups = useMemo(() => {
-    const m = new Map<string, Opt[]>();
-    for (const [id, n, g] of cats) m.set(g, [...(m.get(g) ?? []), [id, n]]);
-    return [...m];
-  }, [cats]);
-  return <>{groups.map(([g, list]) => <optgroup key={g} label={g}>{list.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</optgroup>)}</>;
+/**
+ * Categorias do tipo do lançamento (receita no a receber, despesa no a pagar), agrupadas pelo grupo da DRE.
+ * É uma função (não um componente) porque o `Sel` só enxerga <option>/<optgroup> diretos nos filhos.
+ * A categoria já gravada no lançamento continua na lista mesmo que seja do outro tipo.
+ */
+function categoryOptions(cats: FinOpts["categories"], kind: "RECEBER" | "PAGAR", current: string) {
+  const m = new Map<string, Opt[]>();
+  for (const [id, n, g, k] of cats) if (k === kind || id === current) m.set(g, [...(m.get(g) ?? []), [id, n]]);
+  return [...m].map(([g, list]) => <optgroup key={g} label={g}>{list.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</optgroup>);
 }
 
 export function TitleModal({ t, o, onClose }: { t: Title; o: FinOpts; onClose: () => void }) {
@@ -62,7 +63,7 @@ export function TitleModal({ t, o, onClose }: { t: Title; o: FinOpts; onClose: (
         <div className="fld full"><label htmlFor="t_d">Descrição <span className="req">*</span></label><input id="t_d" value={d.description} maxLength={200} onChange={(e) => set({ description: e.target.value })} autoFocus={!d.id} placeholder={R ? "Ex.: Matrícula 2027 — Enzo" : "Ex.: Energia elétrica outubro"} /></div>
         <div className="fld"><label htmlFor="t_emp">Empresa <span className="req">*</span></label>
           <select id="t_emp" value={d.companyId} disabled={isPaid} onChange={(e) => set({ companyId: e.target.value })}>{o.companies.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
-        <div className="fld"><label htmlFor="t_c">Categoria</label><Sel id="t_c" value={d.categoryId} onChange={(e) => set({ categoryId: e.target.value })}><option value="">Sem categoria</option><CategoryOptions cats={o.categories} /></Sel></div>
+        <div className="fld"><label htmlFor="t_c">Categoria</label><Sel id="t_c" value={d.categoryId} onChange={(e) => set({ categoryId: e.target.value })}><option value="">Sem categoria</option>{categoryOptions(o.categories, d.kind, d.categoryId)}</Sel></div>
         <div className="fld"><label htmlFor="t_v">Valor <span className="req">*</span></label><MoneyInput id="t_v" value={d.amount} disabled={isPaid} min={0} onChange={(v) => set({ amount: v })} /></div>
         {!paid && <div className="fld"><label htmlFor="t_ve">Vencimento <span className="req">*</span></label><input id="t_ve" type="date" value={d.dueDate} onChange={(e) => set({ dueDate: e.target.value })} /></div>}
         <PickField id="t_p" label={R ? "Responsável / pagador" : "Fornecedor / favorecido"} value={d.personId ? { id: d.personId, label: d.personName ?? "" } : null}

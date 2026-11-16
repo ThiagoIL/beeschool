@@ -9,6 +9,9 @@ export const DRE_SECTIONS = [
 ] as const;
 export type DreSection = (typeof DRE_SECTIONS)[number][0];
 
+/** Tipo da categoria: receita aparece nas contas a receber, despesa nas contas a pagar. */
+export const CATEGORY_KINDS: [string, string][] = [["RECEBER", "Receita"], ["PAGAR", "Despesa"]];
+
 export const ACCOUNT_KINDS: [string, string][] = [["BANCO", "Conta bancária"], ["CAIXA", "Caixa (dinheiro)"], ["APLICACAO", "Aplicação financeira"]];
 export const PERSON_KINDS = ["Responsável financeiro", "Fornecedor", "Funcionário", "Prestador de serviço"] as const;
 

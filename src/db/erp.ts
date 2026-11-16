@@ -120,6 +120,8 @@ export const finCategories = pgTable("fin_categories", {
   ...base(),
   name: text("name").notNull(),
   groupId: text("group_id").notNull(),
+  /** RECEBER (receita) ou PAGAR (despesa): filtra as categorias oferecidas em cada lançamento */
+  kind: text("kind").notNull().default("PAGAR"),
   active: boolean("active").notNull().default(true),
 }, (t) => [uniqueIndex("fin_categories_name_uq").on(t.name),
   fk("fin_categories_group_fk", t.groupId, () => dreGroups)]);

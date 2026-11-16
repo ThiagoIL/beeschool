@@ -6,15 +6,12 @@ import { Empty, Kpi, PageHead, Panel } from "@/components/ui";
 import { ActionButton, FilterBar, FilterTabs } from "@/components/client";
 import { Icon } from "@/components/Icon";
 import { BankButtons, DeleteEntryButton, NewTitleButton, PayButton, TitlesTable, type FinOpts, type TitleRow } from "@/components/FinanceUI";
-import { DreTable } from "@/components/DreTable";
 import { ImportWizard, TuitionForm } from "@/components/FinanceTools";
-import { accountBalances, lookupsFin, realizedByCategory, weeklyFlow } from "@/server/finance-queries";
+import { accountBalances, lookupsFin, weeklyFlow } from "@/server/finance-queries";
 import { undoImportAction } from "@/server/finance-actions";
 import { fmtDateTime, fmtMoney } from "@/lib/format";
 import { addDays, fmtD, fmtDM, isDate, today } from "@/lib/dates";
 import { VBars } from "@/components/Charts";
-import { buildDre } from "@/lib/dre";
-import { MONTHS, type DreSection } from "@/lib/consts";
 
 type SP = Record<string, string | string[] | undefined>;
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)?.slice(0, 64);
@@ -27,7 +24,7 @@ export async function finOpts(s: PageCtx): Promise<FinOpts & { raw: Awaited<Retu
     raw,
     companies: raw.companies.filter((c) => c.active).map((c) => [c.id, c.name]),
     accounts: raw.accounts.filter((a) => a.active).map((a) => [a.id, a.name, a.companyId]),
-    categories: raw.categories.filter((c) => c.active).sort((a, b) => (gpos.get(a.groupId)! - gpos.get(b.groupId)!) || a.name.localeCompare(b.name, "pt-BR")).map((c) => [c.id, c.name, gname.get(c.groupId) ?? ""]),
+    categories: raw.categories.filter((c) => c.active).sort((a, b) => (gpos.get(a.groupId)! - gpos.get(b.groupId)!) || a.name.localeCompare(b.name, "pt-BR")).map((c) => [c.id, c.name, gname.get(c.groupId) ?? "", c.kind]),
     methods: raw.methods.filter((m) => m.active).map((m) => [m.id, m.n]),
     situations: raw.situations.filter((x) => x.active).map((x) => [x.id, x.name]),
   };
@@ -91,7 +88,7 @@ export async function TitlesPage({ kind, searchParams }: { kind: "RECEBER" | "PA
   }));
   return (
     <>
-      <PageHead title={R ? "Contas a receber" : "Contas a pagar"} sub={R ? "Mensalidades, matrículas, eventos e demais entradas. Registre o recebimento quando o dinheiro entrar na conta." : "Folha, fornecedores, aluguel, impostos e demais saídas. Registre o pagamento quando sair da conta."}
+      <PageHead title={R ? "Contas a receber" : "Contas a pagar"}
         actions={<><a className="btn" href={`/api/export/${R ? "fin-receber" : "fin-pagar"}?${qs}`}><Icon name="download" size={16} /> Exportar CSV</a>{s.edit && <NewTitleButton kind={kind} o={o} label={R ? "Nova conta a receber" : "Nova conta a pagar"} />}</>} />
       <div className="kpis k4 money">
         <Kpi value={fmtMoney(d.k.aberto)} label="Em aberto" />
@@ -110,7 +107,7 @@ export async function TitlesPage({ kind, searchParams }: { kind: "RECEBER" | "PA
         </>}>
         <div className="search"><Icon name="search" size={16} /><input type="search" name="q" defaultValue={sp.q ?? ""} placeholder={R ? "Descrição, documento, aluno ou responsável" : "Descrição, documento ou favorecido"} aria-label="Buscar" /></div>
         <CompanyFilter o={o} value={sp.emp} />
-        <Sel name="cat" defaultValue={sp.cat ?? ""} aria-label="Categoria"><option value="">Todas as categorias</option>{o.categories.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Sel>
+        <Sel name="cat" defaultValue={sp.cat ?? ""} aria-label="Categoria"><option value="">Todas as categorias</option>{o.categories.filter(([v, , , k]) => k === kind || v === sp.cat).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Sel>
         <label className="fl">Vence de <input type="date" name="de" defaultValue={sp.de ?? ""} /></label>
         <label className="fl">até <input type="date" name="ate" defaultValue={sp.ate ?? ""} /></label>
       </FilterBar>
@@ -151,7 +148,7 @@ export async function StatementPage({ searchParams }: { searchParams: Promise<SP
   const sai = d ? d.lines.filter((l) => l.v < 0).reduce((a, l) => a - l.v, 0) : 0;
   return (
     <>
-      <PageHead title="Extrato" sub="Movimento de cada conta, no mesmo formato das planilhas por banco: entradas, saídas, classificação, nota e o saldo dia a dia."
+      <PageHead title="Extrato"
         actions={<>{acc && <a className="btn" href={`/api/export/fin-extrato?conta=${accId}&de=${de}&ate=${ate}`}><Icon name="download" size={16} /> Exportar CSV</a>}
           {s.edit && acc && <BankButtons accountId={accId} accounts={o.accounts.map(([a, b]) => [a, b])} />}
           {s.edit && <NewTitleButton kind="PAGAR" o={o} label="Nova saída" primary={false} />}{s.edit && <NewTitleButton kind="RECEBER" o={o} label="Nova entrada" />}</>} />
@@ -210,7 +207,7 @@ export async function CashFlowPage({ searchParams }: { searchParams: Promise<SP>
   const comp = new Map(o.raw.companies.map((c) => [c.id, c.name]));
   return (
     <>
-      <PageHead title="Fluxo de caixa previsto" sub="Saldo atual das contas mais o que está previsto para entrar e sair, semana a semana. Contas vencidas e não pagas entram na primeira semana." />
+      <PageHead title="Fluxo de caixa previsto" />
       <FilterBar tabs={<FilterTabs name="n" value={n === 8 ? "" : String(n)} options={[{ v: "4", label: "4 semanas" }, { v: "", label: "8 semanas" }, { v: "13", label: "3 meses" }, { v: "26", label: "6 meses" }]} />}>
         <CompanyFilter o={o} value={emp} />
       </FilterBar>
@@ -266,7 +263,7 @@ export async function TuitionPage({ searchParams }: { searchParams: Promise<SP> 
   const [y, m] = comp.split("-");
   return (
     <>
-      <PageHead title="Mensalidades" sub="Gera as contas a receber do mês para todos os alunos ativos (mensalidade cheia − desconto, no dia de vencimento de cada aluno). Gerar de novo não duplica: só cria as que faltam." />
+      <PageHead title="Mensalidades" />
       <FilterBar><label className="fl">Competência <input type="month" name="comp" defaultValue={comp} /></label></FilterBar>
       <div className="kpis k4 money">
         <Kpi value={fmtMoney(pago.v)} label={`Recebidas (${pago.n})`} />
@@ -276,7 +273,7 @@ export async function TuitionPage({ searchParams }: { searchParams: Promise<SP> 
       </div>
       <div className="grid2">
         <Panel title="Gerar mensalidades">
-          <div className="pb">{s.edit ? <TuitionForm competence={comp} companies={o.companies} categories={o.categories} defaultCategory={defCat} /> : <p className="muted">Seu perfil só consulta o financeiro.</p>}</div>
+          <div className="pb">{s.edit ? <TuitionForm competence={comp} companies={o.companies} categories={o.categories.filter(([, , , k]) => k === "RECEBER")} defaultCategory={defCat} /> : <p className="muted">Seu perfil só consulta o financeiro.</p>}</div>
         </Panel>
         <Panel title="Alunos ativos" sub="mensalidade líquida prevista">
           <div className="pb"><table className="fl-tab"><thead><tr><th>Empresa</th><th className="num">Alunos</th><th className="num">Total por mês</th></tr></thead>
@@ -297,7 +294,7 @@ export async function ImportPage() {
   const imports = await s.tx((tx) => tx.select({ i: E.finImports, a: E.bankAccounts.name }).from(E.finImports).innerJoin(E.bankAccounts, eq(E.bankAccounts.id, E.finImports.bankAccountId)).orderBy(desc(E.finImports.createdAt)).limit(30));
   return (
     <>
-      <PageHead title="Importar planilha de fluxo de caixa" sub="Traga o histórico das planilhas por banco (Google Planilhas › Arquivo › Fazer download › .xlsx ou .csv). Colunas: Data, Descrição (categoria), Entrada, Saída, Classificação e Nota. Cada linha vira um movimento já realizado na conta escolhida." />
+      <PageHead title="Importar planilha de fluxo de caixa" />
       <Panel title="Nova importação"><div className="pb"><ImportWizard accounts={o.raw.companies.map((c) => ({ company: c.name, accounts: o.raw.accounts.filter((a) => a.companyId === c.id && a.active).map((a) => [a.id, a.name] as [string, string]) }))} /></div></Panel>
       <h2 style={{ margin: "22px 0 10px" }}>Importações feitas</h2>
       <div className="tbl">{imports.length ? (
@@ -309,73 +306,3 @@ export async function ImportPage() {
   );
 }
 
-// ------------------------------------------------------------------------------------
-// Relatórios: DRE e exportações
-// ------------------------------------------------------------------------------------
-export async function DreReportPage({ searchParams }: { searchParams: Promise<SP> }) {
-  const s = await page("financeiro");
-  const sp = await searchParams;
-  const year = /^\d{4}$/.test(one(sp.ano) ?? "") ? Number(one(sp.ano)) : Number(today().slice(0, 4));
-  const emp = one(sp.emp), conta = one(sp.conta);
-  const o = await finOpts(s);
-  const periods = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, "0")}`);
-  const d = await s.tx(async (tx) => {
-    const [cs] = await tx.select({ b: E.companySettings.pctBase }).from(E.companySettings).limit(1);
-    return {
-      amounts: await realizedByCategory(tx, `${year}-01-01`, `${year}-12-31`, { companyId: emp, accountId: conta }),
-      previous: await realizedByCategory(tx, `${year - 1}-12-01`, `${year - 1}-12-31`, { companyId: emp, accountId: conta }),
-      baseMode: cs?.b === "RECEITA_BRUTA" ? "RECEITA_BRUTA" as const : "MENSALIDADE" as const,
-    };
-  });
-  const dre = buildDre({ groups: o.raw.groups.filter((g) => g.active).map((g) => ({ ...g, section: g.section as DreSection })), categories: o.raw.categories, amounts: d.amounts, previous: d.previous.map((a) => ({ ...a, period: periods[0] })), periods, baseMode: d.baseMode });
-  const years = Array.from({ length: 6 }, (_, i) => Number(today().slice(0, 4)) + 1 - i);
-  return (
-    <>
-      <PageHead title="DRE gerencial" sub={`Regime de caixa (o que foi recebido e pago). % = participação sobre o faturamento (${d.baseMode === "RECEITA_BRUTA" ? "Receita Bruta" : "grupos marcados como base: Mensalidade"}); % AH = variação sobre o mês anterior.`}
-        actions={<a className="btn" href={`/api/export/fin-dre?ano=${year}${emp ? `&emp=${emp}` : ""}${conta ? `&conta=${conta}` : ""}`}><Icon name="download" size={16} /> Exportar CSV</a>} />
-      <FilterBar>
-        <select name="ano" defaultValue={String(year)} aria-label="Ano">{years.map((y) => <option key={y} value={y}>{y}</option>)}</select>
-        <CompanyFilter o={o} value={emp} />
-        <Sel name="conta" defaultValue={conta ?? ""} aria-label="Conta"><option value="">Todas as contas</option>{o.accounts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Sel>
-      </FilterBar>
-      {dre.uncategorized.some((v) => v !== 0) && <div className="alert warn">Há movimentos sem categoria ({fmtMoney(dre.uncategorized.reduce((a, b) => a + b, 0))}) que não entram na DRE. Classifique-os no extrato.</div>}
-      <DreTable periods={periods.map((p, i) => ({ key: p, label: `${MONTHS[i]}/${String(year).slice(2)}` }))} lines={dre.lines} showTotal />
-    </>
-  );
-}
-
-const REPORTS: { k: string; t: string; d: string; period: "venc" | "pago" | "none"; extra?: "conta" }[] = [
-  { k: "fin-movimentos", t: "Movimentos realizados (layout das planilhas)", d: "Data, Descrição, Entrada, Saída, Classificação e Nota — igual às planilhas por banco, com grupo da DRE, empresa e conta.", period: "pago" },
-  { k: "fin-receber", t: "Contas a receber", d: "Lançamentos a receber no período de vencimento, com aluno, responsável, categoria e situação.", period: "venc" },
-  { k: "fin-pagar", t: "Contas a pagar", d: "Lançamentos a pagar no período de vencimento, com favorecido, categoria e situação.", period: "venc" },
-  { k: "fin-categorias", t: "Resultado por categoria", d: "Entradas e saídas realizadas no período, somadas por grupo da DRE e categoria.", period: "pago" },
-  { k: "fin-inadimplencia", t: "Inadimplência", d: "Contas a receber vencidas e não pagas, com dias de atraso, aluno e telefone do responsável.", period: "none" },
-  { k: "fin-fluxo", t: "Fluxo de caixa previsto", d: "Entradas, saídas e saldo projetado semana a semana pelas próximas 13 semanas.", period: "none" },
-  { k: "fin-extrato", t: "Extrato da conta", d: "Movimento de uma conta no período, com saldo dia a dia.", period: "pago", extra: "conta" },
-];
-
-export async function ExportReportsPage() {
-  const s = await page("financeiro");
-  const o = await finOpts(s);
-  const ini = today().slice(0, 8) + "01";
-  return (
-    <>
-      <PageHead title="Exportar relatórios" sub="Escolha o período e baixe em CSV (abre no Excel e no Google Planilhas)." />
-      <div className="report-list">
-        {REPORTS.map((r) => (
-          <form key={r.k} className="report-card" action={`/api/export/${r.k}`} method="get" target="_blank">
-            <h3>{r.t}</h3><p>{r.d}</p>
-            {r.period !== "none" && <div className="form">
-              <div className="fld"><label>{r.period === "venc" ? "Vencimento de" : "Data de"}</label><input type="date" name="de" defaultValue={ini} /></div>
-              <div className="fld"><label>até</label><input type="date" name="ate" defaultValue={today()} /></div>
-            </div>}
-            {r.extra === "conta" ? <div className="fld"><label>Conta</label><select name="conta">{o.accounts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
-              : r.period !== "none" && o.companies.length > 1 && <div className="fld"><label>Empresa</label><select name="emp"><option value="">Todas</option>{o.companies.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>}
-            {r.period === "venc" && <div className="fld"><label>Situação</label><select name="st"><option value="">Todas</option><option value="aberto">Em aberto</option><option value="vencido">Vencidas</option><option value="pago">Baixadas</option></select></div>}
-            <div className="acts"><button type="submit" className="btn btn-primary"><Icon name="download" size={16} /> Baixar CSV</button></div>
-          </form>
-        ))}
-      </div>
-    </>
-  );
-}

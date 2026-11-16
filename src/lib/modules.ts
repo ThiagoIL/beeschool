@@ -86,11 +86,6 @@ export const APP_NAV: NavModule[] = [
       { href: "/financeiro/extrato", label: "Extrato" },
       { href: "/financeiro/fluxo", label: "Fluxo de caixa" },
       { href: "/financeiro/mensalidades", label: "Mensalidades" },
-      { href: "/financeiro/importar", label: "Importar planilha" },
-      { href: "/financeiro/relatorios", label: "Relatórios", tabs: [
-        { href: "/financeiro/relatorios", label: "DRE" },
-        { href: "/financeiro/relatorios/exportar", label: "Exportar CSV" },
-      ] },
       { href: "/financeiro/configuracoes", label: "Configurações", tabs: [
         { href: "/financeiro/configuracoes", label: "Empresas" },
         { href: "/financeiro/configuracoes/contas", label: "Contas e caixas" },
@@ -99,6 +94,7 @@ export const APP_NAV: NavModule[] = [
         { href: "/financeiro/configuracoes/formas", label: "Formas de pagamento" },
         { href: "/financeiro/configuracoes/situacoes", label: "Situações" },
         { href: "/financeiro/configuracoes/pessoas", label: "Pessoas e fornecedores" },
+        { href: "/financeiro/configuracoes/importar", label: "Importar planilha" },
       ] },
     ],
   },

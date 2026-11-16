@@ -4,7 +4,7 @@ import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 import type { Tx } from "@/lib/db";
 import * as E from "@/db/erp";
 import type { ModuleKey } from "@/lib/modules";
-import { ACCOUNT_KINDS, DRE_SECTIONS, LEVELS_SCHOOL, PERSON_KINDS, SHIFTS, STUDENT_STATUS } from "@/lib/consts";
+import { ACCOUNT_KINDS, CATEGORY_KINDS, DRE_SECTIONS, LEVELS_SCHOOL, PERSON_KINDS, SHIFTS, STUDENT_STATUS } from "@/lib/consts";
 
 /** Tipos de campo dos cadastros simples. */
 export type SFieldType = "text" | "textarea" | "date" | "num" | "int" | "money" | "select" | "multi" | "check" | "color" | "list" | "partner";
@@ -75,8 +75,9 @@ export const SIMPLE: Record<string, SEntity> = {
   },
   categorias: {
     mod: "financeiro", table: t(E.finCategories), title: "Categorias", sub: "Classificação de cada lançamento (coluna “Descrição” das planilhas). Cada categoria soma em um grupo da DRE.", one: "categoria", fem: true,
-    fields: [{ k: "name", label: "Nome", req: true, full: true }, { k: "groupId", label: "Grupo da DRE", t: "select", req: true, full: true, opts: groupsOpt }, { k: "active", label: "Categoria ativa", t: "check", def: true }],
-    cols: [{ k: "name", label: "Categoria", f: "desc" }, { k: "groupId", label: "Grupo da DRE", f: "opt" }, { k: "active", label: "Situação", f: "active" }],
+    fields: [{ k: "name", label: "Nome", req: true, full: true }, { k: "kind", label: "Tipo", t: "select", req: true, opts: CATEGORY_KINDS, def: "PAGAR", hint: "Receita aparece em Contas a receber; despesa, em Contas a pagar." },
+      { k: "groupId", label: "Grupo da DRE", t: "select", req: true, opts: groupsOpt }, { k: "active", label: "Categoria ativa", t: "check", def: true }],
+    cols: [{ k: "name", label: "Categoria", f: "desc" }, { k: "kind", label: "Tipo", f: "opt" }, { k: "groupId", label: "Grupo da DRE", f: "opt" }, { k: "active", label: "Situação", f: "active" }],
     counts: [{ k: "n", label: "Lançamentos", sql: sql`(select count(*)::int from fin_titles x where x.category_id = fin_categories.id)`, f: "num" }],
     uses: [[E.finTitles, E.finTitles.categoryId, "Há lançamentos nesta categoria. Marque como inativa em vez de excluir."]],
     order: () => [asc(sql`(select g.position from dre_groups g where g.id = fin_categories.group_id)`), asc(E.finCategories.name)],

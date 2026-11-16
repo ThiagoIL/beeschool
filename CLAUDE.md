@@ -37,6 +37,10 @@ nodemailer · CSS próprio (`src/app/globals.css`, paleta dourado #E9AE20 / pret
 - DRE em `src/lib/dre.ts` (regime de caixa, % AH sobre |anterior|, % sobre a base). Conferida com o painel.
 - Mensalidades: `generateTuitionAction` (índice único aluno+competência). Importação: `importStatementAction`
   (layout Data/Descrição/Entrada/Saída/Classificação/Nota; prévia, duplicados, desfazer por `fin_imports`).
+- Categoria tem tipo (`fin_categories.kind`: RECEBER = receita, PAGAR = despesa); o lançamento só oferece as do seu tipo
+  (`categoryOptions` em `FinanceUI.tsx` — função, não componente, porque o `Sel` só lê `<option>`/`<optgroup>` diretos).
+- Menu do Financeiro (nov/2026): sem Relatórios (DRE fica em Painéis; CSVs saem pelos botões "Exportar CSV" das telas);
+  "Importar planilha" é aba de Configurações (`/financeiro/configuracoes/importar`). Páginas do Financeiro só têm título (sem subtítulo).
 - Indicadores (`indicators`) + metas por empresa (`indicator_targets`).
 
 ## Onde fica cada coisa

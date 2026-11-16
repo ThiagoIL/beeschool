@@ -88,7 +88,7 @@ export async function ensureDefaults(): Promise<void> {
     if (await empty(E.dreGroups)) {
       for (const [i, p] of DEFAULT_PLAN.entries()) {
         const [g] = await tx.insert(E.dreGroups).values({ name: p.group, section: p.section, position: (i + 1) * 10, isBase: !!p.base }).returning();
-        await tx.insert(E.finCategories).values(p.cats.map((name) => ({ name, groupId: g.id })));
+        await tx.insert(E.finCategories).values(p.cats.map((name) => ({ name, groupId: g.id, kind: p.section === "RECEITA" ? "RECEBER" : "PAGAR" })));
       }
     }
     if (await empty(E.indicators)) {

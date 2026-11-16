@@ -10,7 +10,7 @@ import { rowsFromSheet, type SheetRow } from "@/lib/finance-rules";
 
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-export function TuitionForm({ competence, companies, categories, defaultCategory }: { competence: string; companies: [string, string][]; categories: [string, string, string][]; defaultCategory: string }) {
+export function TuitionForm({ competence, companies, categories, defaultCategory }: { competence: string; companies: [string, string][]; categories: [string, string, string, string][]; defaultCategory: string }) {
   const [f, setF] = useState({ competence, companyId: "", categoryId: defaultCategory });
   const { run, pending } = useRun();
   return (

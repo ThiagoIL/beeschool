@@ -26,7 +26,7 @@ export async function SimplePage({ k, title, sub, note }: { k: string; title?: s
   const nextPos = E.autoPos ? Math.max(0, ...rows.map((r) => Number(r.position) || 0)) + 1 : undefined;
   return (
     <>
-      <SimpleCrud title={title ?? E.title} sub={sub ?? E.sub} k={k} one={E.one} fem={!!E.fem} fields={fields} cols={cols} rows={JSON.parse(JSON.stringify(rows))}
+      <SimpleCrud title={title ?? E.title} sub={E.mod === "financeiro" ? undefined : sub ?? E.sub} k={k} one={E.one} fem={!!E.fem} fields={fields} cols={cols} rows={JSON.parse(JSON.stringify(rows))}
         canEdit={s.edit} nextPos={nextPos} save={saveSimpleAction.bind(null, k)} remove={deleteSimpleAction.bind(null, k)} />
       {note}
     </>

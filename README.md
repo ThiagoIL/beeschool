@@ -3,7 +3,7 @@
 Sistema de gestão escolar da **Bee Christian School** e da **Be Light Christian School**, começando pelo
 **financeiro**: contas a receber e a pagar, extrato por banco, fluxo de caixa, mensalidades, importação das
 planilhas, DRE gerencial, painéis (Análise DRE, Fluxo de caixa, Indicadores com metas do orçamento) e
-relatórios em CSV. Traz também as primeiras seções acadêmicas (alunos, turmas, responsáveis) para substituir
+exportações em CSV. Traz também as primeiras seções acadêmicas (alunos, turmas, responsáveis) para substituir
 o Proesc aos poucos.
 
 **Sistema de uma escola só** (sem multi-tenant): um deploy, um banco, uma instituição. O **console do
@@ -67,7 +67,7 @@ mensalidade por aluno e competência, lançamento baixado não se exclui.
 | Módulo | Telas |
 |---|---|
 | Início | saldo das contas, vencidos e a vencer, próximos 7 dias, atalhos |
-| Financeiro | Contas a receber · Contas a pagar · Extrato (por conta, com saldo dia a dia, transferência e ajuste) · Fluxo de caixa previsto · Mensalidades (gera as do mês sem duplicar) · Importar planilha (.xlsx/.csv, prévia, duplicados, desfazer) · Relatórios (DRE + exportações CSV) · Configurações (empresas, contas, grupos da DRE, categorias, formas, situações, pessoas) |
+| Financeiro | Contas a receber · Contas a pagar · Extrato (por conta, com saldo dia a dia, transferência e ajuste) · Fluxo de caixa previsto · Mensalidades (gera as do mês sem duplicar) · Configurações (empresas, contas, grupos da DRE, categorias receita/despesa, formas, situações, pessoas, importar planilha .xlsx/.csv com prévia, duplicados e desfazer) |
 | Painéis | Análise DRE · Fluxo de caixa · Indicadores · Orçamento e metas (filtros Ano, Mês, Banco, Empresa) |
 | Acadêmico | Alunos (turma, responsável, mensalidade, desconto, dia de vencimento, código Proesc) · Turmas · Responsáveis |
 | Administração | Usuários · Perfis de acesso · Instituição (logo, dados, base dos percentuais) |
@@ -198,7 +198,7 @@ Ver `.env.example` (com explicação de cada uma). Obrigatórias: `DATABASE_URL`
 
 ## Operação do dia a dia
 
-- **Importar o histórico**: Financeiro › Importar planilha, uma planilha por conta. Categorias com nome
+- **Importar o histórico**: Financeiro › Configurações › Importar planilha, uma planilha por conta. Categorias com nome
   diferente aparecem na prévia: cadastre-as ou importe sem categoria. Dá para desfazer cada importação.
 - **Mensalidades**: Financeiro › Mensalidades, escolha a competência e gere (repetir não duplica).
 - **Bloquear/liberar o sistema**: console › Licença e módulos. O bloqueio automático acontece depois de
